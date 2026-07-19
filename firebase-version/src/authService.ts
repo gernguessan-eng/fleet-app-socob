@@ -1,6 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   type User,
@@ -61,6 +62,13 @@ export async function loginWithEmail(email: string, password: string) {
   const profile = await readOrCreateProfile(cred.user);
   signalPresenceConnected(profile.displayName, profile.email, profile.role);
   return profile;
+}
+
+// Envoie un e-mail (via Firebase) contenant un lien pour réinitialiser le mot de passe.
+// Ne révèle jamais si l'adresse existe ou non côté UI (voir Login.tsx) : c'est Firebase
+// qui gère l'envoi réel, aucune information sensible ne transite par notre code.
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email);
 }
 
 export function observeAuth(callback: (profile: UserProfile | null) => void) {
