@@ -170,7 +170,7 @@ export default function Expenses() {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">{expense.fournisseur || '-'}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{expense.mode_paiement || '-'}</td>
-                      <td className="px-4 py-3 text-right text-sm font-bold text-slate-800">{formatMoney(expense.montant)}</td>
+                      <td className={`px-4 py-3 text-right text-sm font-bold ${expense.montant < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>{formatMoney(expense.montant)}</td>
                       <td className="px-4 py-3 text-center print:hidden"><div className="flex items-center justify-center gap-1">
                         <button onClick={() => handleEdit(expense)} className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600" title="Modifier"><Pencil className="h-4 w-4" /></button>
                       </div></td>
@@ -275,7 +275,11 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }
             </div>
           )}
           <label className="col-span-2 block text-xs font-medium text-slate-600">Libellé<input required value={f.libelle} onChange={(e) => up('libelle', e.target.value)} placeholder="Ex: Vidange, carburant..." className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
-          <label className="block text-xs font-medium text-slate-600">Montant (FCFA)<input type="number" required min="0" value={f.montant} onChange={(e) => up('montant', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
+          <label className="block text-xs font-medium text-slate-600">
+            Montant (FCFA)
+            <input type="number" required value={f.montant} onChange={(e) => up('montant', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <span className="mt-1 block text-[10px] leading-snug text-slate-400">Un montant négatif (ex : -15000) enregistre un avoir ou une correction : il vient diminuer automatiquement tous les totaux concernés.</span>
+          </label>
           <label className="block text-xs font-medium text-slate-600">Fournisseur
             <input list="expense-suppliers" value={f.fournisseur} onChange={(e) => up('fournisseur', e.target.value)} placeholder="Ex: Station TotalEnergies" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             <datalist id="expense-suppliers">{knownSuppliers.map(s => <option key={s} value={s} />)}</datalist>

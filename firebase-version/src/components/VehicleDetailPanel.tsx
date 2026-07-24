@@ -456,7 +456,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
                         {exp.fournisseur && <p className="mt-0.5 text-xs text-slate-400">{exp.fournisseur}</p>}
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="whitespace-nowrap text-sm font-bold text-slate-700">{formatMoney(exp.montant)}</p>
+                        <p className={`whitespace-nowrap text-sm font-bold ${exp.montant < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>{formatMoney(exp.montant)}</p>
                         {!printMode && (
                           <DeleteGuardButton
                             module="depenses"
