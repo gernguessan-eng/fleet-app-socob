@@ -7,6 +7,19 @@ const USERS_COLLECTION = "users";
 const STATUT_CONNECTE = "Connecté";
 const STATUT_DECONNECTE = "Déconnecté";
 
+// Identifie automatiquement quelle version de FleetGest signale la présence,
+// à partir du nom de domaine du déploiement (ex: "g4sfleetgest.netlify.app"
+// -> "g4sfleetgest"). Ainsi chaque client (G4S, SOCOB, MyGestStock...) est
+// reconnu correctement sans jamais avoir à modifier ce fichier à la main
+// avant un déploiement.
+function currentAppName(): string {
+  if (typeof window === "undefined" || !window.location?.hostname) return "FleetGest";
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return "FleetGest (local)";
+  const firstSegment = host.split(".")[0];
+  return firstSegment || "FleetGest";
+}
+
 // Construit un identifiant stable et valide pour Firestore à partir de l'identifiant
 // FleetGest de la personne, pour qu'un même utilisateur soit toujours reconnu comme
 // la même personne par RISE Presence, même si la connexion technique est anonyme.
@@ -37,7 +50,7 @@ export async function signalPresenceConnected(identifier: string, email: string,
           displayName: identifier,
           email: email || "",
           role: fonction || "",
-          application: "FleetGest",
+          application: currentAppName(),
           statut: STATUT_CONNECTE,
           connexion: serverTimestamp(),
           deconnexion: null,
