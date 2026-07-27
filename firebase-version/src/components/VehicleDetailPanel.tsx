@@ -3,6 +3,7 @@ import { useVehicles } from '../store/VehicleStore';
 import type { Vehicle, MaintenanceRecord } from '../types';
 import { MAINTENANCE_TYPES } from '../types';
 import SelectWithOther from './SelectWithOther';
+import SortToggleButton, { type SortDirection } from './SortToggleButton';
 import {
   Car, MapPin, User, Gauge, Calendar, Shield, FileText,
   Wrench, AlertCircle, DollarSign, Info, Hash, Fuel, Receipt, Camera, Upload, X,
@@ -73,15 +74,17 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
 
   const [showMaintForm, setShowMaintForm] = useState(false);
   const [maintForm, setMaintForm]         = useState({ date: '', type: '', description: '', cout: '', kilometrage: '' });
+  const [maintSortDir, setMaintSortDir] = useState<SortDirection>('desc');
+  const [expSortDir, setExpSortDir] = useState<SortDirection>('desc');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const vehicleMaintenance = maintenanceRecords
     .filter((m) => m.vehicleId === vehicle.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => (maintSortDir === 'desc' ? 1 : -1) * (new Date(b.date).getTime() - new Date(a.date).getTime()));
 
   const vehicleExpenses = expenseRecords
     .filter((e) => e.vehicleId === vehicle.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => (expSortDir === 'desc' ? 1 : -1) * (new Date(b.date).getTime() - new Date(a.date).getTime()));
 
   const totalExpenses    = vehicleExpenses.reduce((s, e) => s + e.montant, 0);
   const totalMaintenance = vehicleMaintenance.reduce((s, m) => s + m.cout, 0);
@@ -290,7 +293,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
 
         {/* Maintenance + Dépenses */}
         <div className="space-y-4">
-          <Card title={<><Wrench className="h-4 w-4" /> Historique Maintenance</>}>
+          <Card title={<><span className="inline-flex items-center gap-2"><Wrench className="h-4 w-4" /> Historique Maintenance</span><SortToggleButton direction={maintSortDir} onToggle={() => setMaintSortDir(d => d === 'desc' ? 'asc' : 'desc')} className="ml-auto normal-case" /></>}>
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm text-slate-500">
                 {vehicleMaintenance.length} intervention(s) — {formatMoney(totalMaintenance)}
@@ -369,7 +372,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
             )}
           </Card>
 
-          <Card title={<><Receipt className="h-4 w-4" /> Dépenses du Véhicule</>}>
+          <Card title={<><span className="inline-flex items-center gap-2"><Receipt className="h-4 w-4" /> Dépenses du Véhicule</span><SortToggleButton direction={expSortDir} onToggle={() => setExpSortDir(d => d === 'desc' ? 'asc' : 'desc')} className="ml-auto normal-case" /></>}>
             <p className="mb-3 text-sm text-slate-500">{vehicleExpenses.length} dépense(s) — {formatMoney(totalExpenses)}</p>
             {vehicleExpenses.length > 0 ? (
               <div className="max-h-56 space-y-2 overflow-y-auto">
