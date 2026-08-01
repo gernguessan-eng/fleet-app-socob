@@ -2,8 +2,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useVehicles } from '../store/VehicleStore';
 import { ArrowLeft, Car, MapPin, User, Gauge, Calendar, Shield, FileText, Wrench, AlertCircle, DollarSign, Info, Hash, Fuel, Receipt } from 'lucide-react';
 import type { MaintenanceRecord } from '../types';
+import { isMaintenanceDerivedExpense } from '../utils/maintenance';
 import DeleteGuardButton from './DeleteGuardButton';
+import SortDateButton, { type SortOrder } from './SortDateButton';
 import { useState } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 function formatDate(d: string) {
   if (!d) return '—';
@@ -26,8 +29,10 @@ export default function VehicleDetail() {
   const navigate = useNavigate();
   const { vehicles, deleteVehicle, maintenanceRecords, addMaintenanceRecord, deleteMaintenanceRecord, expenseRecords, deleteExpenseRecord } = useVehicles();
   const vehicle = vehicles.find((v) => v.id === id);
-  const [showMaintForm, setShowMaintForm] = useState(false);
-  const [maintForm, setMaintForm] = useState({ date: '', type: '', description: '', cout: '', kilometrage: '' });
+  const [showMaintForm, setShowMaintForm] = usePersistedState(`fleetgest_draft_maint_form_open_${id}`, false);
+  const [maintForm, setMaintForm] = usePersistedState(`fleetgest_draft_maintenance_${id}`, { date: '', type: '', description: '', cout: '', kilometrage: '' });
+  const [maintSortOrder, setMaintSortOrder] = useState<SortOrder>('desc');
+  const [expensesSortOrder, setExpensesSortOrder] = useState<SortOrder>('desc');
 
   if (!vehicle) {
     return (
@@ -44,7 +49,7 @@ export default function VehicleDetail() {
   const vehicleMaintenance = maintenanceRecords.filter((m) => m.vehicleId === vehicle.id);
   const vehicleExpenses = expenseRecords
     .filter((expense) => expense.vehicleId === vehicle.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => expensesSortOrder === 'asc' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime());
   const totalExpenses = vehicleExpenses.reduce((sum, expense) => sum + expense.montant, 0);
   const daysToAssurance = daysUntil(vehicle.date_assurance);
   const daysToVignette = daysUntil(vehicle.date_vignette);
@@ -68,6 +73,7 @@ export default function VehicleDetail() {
       kilometrage: Number(maintForm.kilometrage),
     };
     addMaintenanceRecord(record);
+    try { localStorage.removeItem(`fleetgest_draft_maintenance_${id}`); } catch { /* ignore */ }
     setShowMaintForm(false);
     setMaintForm({ date: '', type: '', description: '', cout: '', kilometrage: '' });
   };
@@ -222,7 +228,7 @@ export default function VehicleDetail() {
 
         {/* Maintenance */}
         <div>
-          {infoCard(<><Wrench className="h-4 w-4" /> Historique de Maintenance</>,
+          {infoCard(<><Wrench className="h-4 w-4" /> Historique de Maintenance<SortDateButton order={maintSortOrder} onToggle={() => setMaintSortOrder(o => o === 'asc' ? 'desc' : 'asc')} className="ml-1 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-500 hover:border-emerald-300 hover:text-emerald-700" /></>,
             <>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-slate-500">
@@ -254,7 +260,7 @@ export default function VehicleDetail() {
 
               {vehicleMaintenance.length > 0 ? (
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {vehicleMaintenance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((m) => (
+                  {vehicleMaintenance.slice().sort((a, b) => maintSortOrder === 'asc' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime()).map((m) => (
                     <div key={m.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
                       <div className="flex items-center justify-between">
                         <div>
@@ -285,7 +291,7 @@ export default function VehicleDetail() {
           )}
 
           <div className="mt-4">
-            {infoCard(<><Receipt className="h-4 w-4" /> Dépenses du Véhicule</>,
+            {infoCard(<><Receipt className="h-4 w-4" /> Dépenses du Véhicule<SortDateButton order={expensesSortOrder} onToggle={() => setExpensesSortOrder(o => o === 'asc' ? 'desc' : 'asc')} className="ml-1 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-500 hover:border-emerald-300 hover:text-emerald-700" /></>,
               <>
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm text-slate-500">
@@ -300,29 +306,35 @@ export default function VehicleDetail() {
                 </div>
                 {vehicleExpenses.length > 0 ? (
                   <div className="max-h-64 space-y-2 overflow-y-auto">
-                    {vehicleExpenses.slice(0, 8).map((expense) => (
-                      <div key={expense.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                    {vehicleExpenses.slice(0, 8).map((expense) => {
+                      const fromMaintenance = isMaintenanceDerivedExpense(expense.id);
+                      return (
+                      <div key={expense.id} className={`rounded-lg border border-slate-100 p-3 ${fromMaintenance ? 'bg-blue-50/40' : 'bg-slate-50'}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{expense.libelle}</p>
                             <p className="text-xs text-slate-500">{formatDate(expense.date)} — {expense.categorie}</p>
+                            {fromMaintenance && <p className="mt-0.5 text-xs font-medium text-blue-600">🔧 Depuis Historique Maintenance — à gérer ci-dessus</p>}
                             {expense.fournisseur && <p className="mt-1 text-xs text-slate-400">{expense.fournisseur}</p>}
                           </div>
                           <div className="flex items-center gap-2">
                             <p className={`whitespace-nowrap text-sm font-bold ${expense.montant < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>{formatMoney(expense.montant)}</p>
-                            <DeleteGuardButton
-                              module="depenses"
-                              recordId={expense.id}
-                              label={`la dépense « ${expense.libelle} » du ${formatDate(expense.date)}`}
-                              onDelete={() => deleteExpenseRecord(expense.id)}
-                              className="text-slate-400 hover:text-red-500"
-                            >
-                              ×
-                            </DeleteGuardButton>
+                            {!fromMaintenance && (
+                              <DeleteGuardButton
+                                module="depenses"
+                                recordId={expense.id}
+                                label={`la dépense « ${expense.libelle} » du ${formatDate(expense.date)}`}
+                                onDelete={() => deleteExpenseRecord(expense.id)}
+                                className="text-slate-400 hover:text-red-500"
+                              >
+                                ×
+                              </DeleteGuardButton>
+                            )}
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="py-4 text-center text-sm text-slate-400">Aucune dépense enregistrée</p>

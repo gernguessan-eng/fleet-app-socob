@@ -172,7 +172,6 @@ export type DashboardStats = {
   upcomingCarteStationnement: number;
   energyDistribution: { name: string; value: number }[];
   brandDistribution: { name: string; value: number }[];
-  monthlyCosts: { month: string; cost: number }[];
   monthlyExpenses: { month: string; cost: number }[];
   expenseCategoryDistribution: { name: string; value: number }[];
   vehicleAgeDistribution: { name: string; value: number }[];

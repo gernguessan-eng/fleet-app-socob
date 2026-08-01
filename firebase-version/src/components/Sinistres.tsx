@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { useVehicles } from '../store/VehicleStore';
 import type { SinistreRecord } from '../types/sinistres';
 import { SINISTRE_TYPES } from '../types/sinistres';
 import {
@@ -8,6 +8,7 @@ import {
   Car, Shield, DollarSign, X, Eye, Upload, Info,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
+import SortDateButton, { type SortOrder } from './SortDateButton';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 
 const STATUT_COLORS: Record<string, string> = {
@@ -20,12 +21,13 @@ const STATUT_COLORS: Record<string, string> = {
 
 export default function Sinistres() {
   const { vehicles, sinistres, addSinistre, updateSinistre, deleteSinistre } = useVehicles();
-  const [showForm, setShowForm] = useState(false);
-  const [editSinistre, setEditSinistre] = useState<SinistreRecord | undefined>();
+  const [showForm, setShowForm] = usePersistedState('fleetgest_draft_sinistre_form_open', false);
+  const [editSinistreId, setEditSinistreId] = usePersistedState<string | null>('fleetgest_draft_sinistre_edit_id', null);
   const [search, setSearch] = usePersistedState('fleetgest_filter_sinistres_search', '');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [periodFrom, setPeriodFrom] = usePersistedState('fleetgest_filter_sinistres_from', '');
   const [periodTo, setPeriodTo] = usePersistedState('fleetgest_filter_sinistres_to', '');
+  const [sortOrder, setSortOrder] = usePersistedState<SortOrder>('fleetgest_sort_sinistres_date', 'desc');
 
   const vehicleById = useMemo(() => new Map(vehicles.map(v => [v.id, v])), [vehicles]);
 
@@ -65,7 +67,7 @@ export default function Sinistres() {
     if (id) updateSinistre(id, data);
     else addSinistre({ ...data, id: 'si' + Date.now() });
     setShowForm(false);
-    setEditSinistre(undefined);
+    setEditSinistreId(null);
     // Un sinistre "En réparation" immobilise le véhicule (statut "En maintenance"
     // dans le menu Véhicules) ; il redevient "Actif" dès qu'aucun sinistre du
     // véhicule n'est plus "En réparation" et qu'aucune immobilisation n'est active.
@@ -80,7 +82,7 @@ export default function Sinistres() {
           <p className="mt-1 text-sm text-slate-500">Suivi des accidents, déclarations et indemnisations</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setEditSinistre(undefined); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Déclarer</button>
+          <button onClick={() => { setEditSinistreId(null); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Déclarer</button>
           <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer"><Upload className="h-4 w-4" /><input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={() => {}} /></label>
           <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"><Printer className="h-4 w-4" /> Imprimer</button>
         </div>
@@ -154,14 +156,16 @@ export default function Sinistres() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
-                {['Date', 'Véhicule', 'Type', 'Lieu', 'Assureur', 'Coût', 'Statut', 'Action'].map(h => (
-                  <th key={h} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                {['', 'Véhicule', 'Type', 'Lieu', 'Assureur', 'Coût', 'Statut', 'Action'].map((h, i) => (
+                  <th key={h + i} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    {i === 0 ? <span className="flex items-center gap-1.5 normal-case">Date<SortDateButton order={sortOrder} onToggle={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')} /></span> : h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? <tr><td colSpan={8} className="py-10 text-center text-slate-400">Aucun sinistre trouvé</td></tr> :
-                filtered.sort((a, b) => new Date(b.date_sinistre).getTime() - new Date(a.date_sinistre).getTime()).map(s => {
+                filtered.slice().sort((a, b) => sortOrder === 'asc' ? new Date(a.date_sinistre).getTime() - new Date(b.date_sinistre).getTime() : new Date(b.date_sinistre).getTime() - new Date(a.date_sinistre).getTime()).map(s => {
                   const v = vehicleById.get(s.vehicleId);
                   return (
                     <tr key={s.id} className="hover:bg-slate-50">
@@ -175,7 +179,7 @@ export default function Sinistres() {
                       <td className="px-3 py-2 print:hidden">
                         <div className="flex gap-1">
                           <button onClick={() => setDetailId(s.id)} className="p-1 text-slate-400 hover:text-blue-600" title="Détails"><Eye className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => { setEditSinistre(s); setShowForm(true); }} className="p-1 text-slate-400 hover:text-amber-600" title="Modifier"><Car className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => { setEditSinistreId(s.id); setShowForm(true); }} className="p-1 text-slate-400 hover:text-amber-600" title="Modifier"><Car className="h-3.5 w-3.5" /></button>
                           <DeleteGuardButton
                             module="sinistres"
                             recordId={s.id}
@@ -194,7 +198,7 @@ export default function Sinistres() {
         </div>
       </div>
 
-      {showForm && <SinistreFormModal sinistre={editSinistre} vehicles={vehicles} onSave={handleSave} onClose={() => { setShowForm(false); setEditSinistre(undefined); }} />}
+      {showForm && <SinistreFormModal sinistre={sinistres.find(s => s.id === editSinistreId)} vehicles={vehicles} onSave={handleSave} onClose={() => { setShowForm(false); setEditSinistreId(null); }} />}
 
       {detailId && <SinistreDetail sinistre={sinistres.find(s => s.id === detailId)!} vehicle={vehicleById.get(sinistres.find(s => s.id === detailId)?.vehicleId || '')} onClose={() => setDetailId(null)} />}
     </div>
@@ -240,7 +244,8 @@ interface SinistreFormProps {
 }
 
 function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreFormProps) {
-  const [f, setF] = useState({
+  const draftKey = sinistre ? `fleetgest_draft_sinistre_edit_${sinistre.id}` : 'fleetgest_draft_sinistre_new';
+  const [f, setF] = usePersistedState(draftKey, {
     vehicleId: sinistre?.vehicleId || vehicles[0]?.id || '',
     date_sinistre: sinistre?.date_sinistre || new Date().toISOString().slice(0, 10),
     lieu: sinistre?.lieu || '',
@@ -263,7 +268,7 @@ function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreForm
           <h3 className="text-lg font-bold">{sinistre ? 'Modifier le sinistre' : 'Déclarer un sinistre'}</h3>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
         </div>
-        <form onSubmit={e => { e.preventDefault(); onSave(f, sinistre?.id); }} className="grid grid-cols-2 gap-4 p-6">
+        <form onSubmit={e => { e.preventDefault(); try { localStorage.removeItem(draftKey); } catch { /* ignore */ } onSave(f, sinistre?.id); }} className="grid grid-cols-2 gap-4 p-6">
           <label className="block text-xs font-medium text-slate-600">Véhicule
             <select value={f.vehicleId} onChange={e => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}

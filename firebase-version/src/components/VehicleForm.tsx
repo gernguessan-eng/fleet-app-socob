@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { useVehicles } from '../store/VehicleStore';
 import type { Vehicle } from '../types';
 import { X, FileImage } from 'lucide-react';
@@ -68,7 +69,11 @@ const emptyVehicle: Omit<Vehicle, 'id'> = {
 
 export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormProps) {
   const { addVehicle, updateVehicle } = useVehicles();
-  const [formData, setFormData] = useState<Omit<Vehicle, 'id'>>(vehicle ? { ...vehicle } : { ...emptyVehicle });
+  // Clé de brouillon distincte par véhicule modifié (et une clé fixe pour un nouveau
+  // véhicule), pour que la saisie en cours survive à une navigation vers une autre page
+  // puis un retour, sans mélanger les brouillons de deux véhicules différents.
+  const draftKey = vehicle ? `fleetgest_draft_vehicle_edit_${vehicle.id}` : 'fleetgest_draft_vehicle_new';
+  const [formData, setFormData] = usePersistedState<Omit<Vehicle, 'id'>>(draftKey, vehicle ? { ...vehicle } : { ...emptyVehicle });
   const [activeTab, setActiveTab] = useState<'carte' | 'technique' | 'gestion'>('carte');
   // Identifiant stable dès l'ouverture du formulaire (même pour un nouveau véhicule) afin
   // que l'import de documents fonctionne immédiatement, avant le premier enregistrement.
@@ -86,6 +91,7 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
     } else {
       addVehicle({ ...formData, id: pendingId });
     }
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     onSave();
   };
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { useVehicles } from '../store/VehicleStore';
 import { getFuelPrice } from '../utils/fuelPrices';
 import {
@@ -138,19 +139,19 @@ const MOCK_HISTORY = [
 
 export default function GeolocTrajets() {
   const { vehicles } = useVehicles();
-  const [activeTab, setActiveTab] = useState<'itineraire' | 'suivi'>('itineraire');
+  const [activeTab, setActiveTab] = usePersistedState<'itineraire' | 'suivi'>('fleetgest_draft_geoloc_tab', 'itineraire');
 
   // Itinéraire
-  const [selectedVehicleId, setSelectedVehicleId] = useState('');
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = usePersistedState('fleetgest_draft_geoloc_vehicle', '');
+  const [origin, setOrigin] = usePersistedState('fleetgest_draft_geoloc_origin', '');
+  const [destination, setDestination] = usePersistedState('fleetgest_draft_geoloc_destination', '');
+  const [routeResult, setRouteResult] = usePersistedState<RouteResult | null>('fleetgest_draft_geoloc_result', null);
   const [error, setError] = useState('');
 
   // Suivi GPS
-  const [trackVehicleId, setTrackVehicleId] = useState('');
-  const [tracking, setTracking] = useState(false);
-  const [trackHistory, setTrackHistory] = useState<Array<{ address: string; lat: number; lon: number; date: string }>>([]);
+  const [trackVehicleId, setTrackVehicleId] = usePersistedState('fleetgest_draft_geoloc_track_vehicle', '');
+  const [tracking, setTracking] = usePersistedState('fleetgest_draft_geoloc_tracking', false);
+  const [trackHistory, setTrackHistory] = usePersistedState<Array<{ address: string; lat: number; lon: number; date: string }>>('fleetgest_draft_geoloc_track_history', []);
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
   const trackVehicle    = vehicles.find(v => v.id === trackVehicleId);

@@ -1,4 +1,5 @@
 import { useVehicles } from '../store/VehicleStore';
+import { isMaintenanceDerivedExpense } from '../utils/maintenance';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
@@ -64,19 +65,17 @@ export default function Analytics() {
     km: v.kilometrage,
   })).sort((a, b) => b.km - a.km).slice(0, 10);
 
-  // Operational expenses by vehicle, including the dedicated expenses tab.
+  // Dépenses opérationnelles par véhicule (le menu Dépenses inclut déjà les coûts de
+  // maintenance, fusionnés automatiquement — voir utils/maintenance.ts — donc pas besoin
+  // de rajouter maintenanceRecords ici, ça compterait ces coûts deux fois).
   const maintCostByVehicle = vehicles.map((v) => {
-    const maintenanceCost = maintenanceRecords.filter((m) => m.vehicleId === v.id).reduce((s, m) => s + m.cout, 0);
-    const expenseCost = expenseRecords.filter((expense) => expense.vehicleId === v.id).reduce((s, expense) => s + expense.montant, 0);
-    const cost = maintenanceCost + expenseCost;
+    const cost = expenseRecords.filter((expense) => expense.vehicleId === v.id).reduce((s, expense) => s + expense.montant, 0);
     return { name: v.numero_immatriculation, cout: cost };
   }).filter((v) => v.cout > 0).sort((a, b) => b.cout - a.cout).slice(0, 10);
 
   // Cost per km
   const costPerKm = vehicles.map((v) => {
-    const maintCost = maintenanceRecords.filter((m) => m.vehicleId === v.id).reduce((s, m) => s + m.cout, 0);
-    const expenseCost = expenseRecords.filter((expense) => expense.vehicleId === v.id).reduce((s, expense) => s + expense.montant, 0);
-    const totalVariableCost = maintCost + expenseCost;
+    const totalVariableCost = expenseRecords.filter((expense) => expense.vehicleId === v.id).reduce((s, expense) => s + expense.montant, 0);
     const avgCostPerKm = v.kilometrage > 0 ? Math.round(totalVariableCost / v.kilometrage) : 0;
     return { name: v.numero_immatriculation, coutParKm: avgCostPerKm, totalMaint: totalVariableCost };
   }).filter((v) => v.totalMaint > 0).sort((a, b) => b.coutParKm - a.coutParKm).slice(0, 10);
@@ -99,9 +98,15 @@ export default function Analytics() {
   }).sort((a, b) => b.frequence - a.frequence).slice(0, 10);
 
   // Total cost analysis
+  // "maintenance" et "depenses" doivent former des ensembles SANS chevauchement pour ce
+  // graphique empilé : les dépenses issues de la fusion Historique Maintenance ↔ Dépenses
+  // (voir utils/maintenance.ts) sont donc exclues du segment "depenses", puisqu'elles sont
+  // déjà comptées dans le segment "maintenance".
   const totalCostAnalysis = vehicles.map((v) => {
     const maintCost = maintenanceRecords.filter((m) => m.vehicleId === v.id).reduce((s, m) => s + m.cout, 0);
-    const expenseCost = expenseRecords.filter((expense) => expense.vehicleId === v.id).reduce((s, expense) => s + expense.montant, 0);
+    const expenseCost = expenseRecords
+      .filter((expense) => expense.vehicleId === v.id && !isMaintenanceDerivedExpense(expense.id))
+      .reduce((s, expense) => s + expense.montant, 0);
     const acquisition = v.cout_achat;
     const assurance = v.cout_assurance_annuel;
     return {

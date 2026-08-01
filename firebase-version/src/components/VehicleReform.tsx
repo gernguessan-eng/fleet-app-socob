@@ -20,7 +20,7 @@ function getAge(dateMiseCirculation: string): number {
 }
 
 export default function VehicleReform() {
-  const { vehicles, expenseRecords, maintenanceRecords } = useVehicles();
+  const { vehicles, expenseRecords } = useVehicles();
 
   // ── Critères ──
   const [ageEnabled,  setAgeEnabled]  = usePersistedState('fleetgest_filter_reform_age_on', false);
@@ -32,19 +32,19 @@ export default function VehicleReform() {
   const [costThreshold, setCostThreshold] = usePersistedState('fleetgest_filter_reform_cost_val', 5000000);
 
   // ── Calcul coût d'exploitation par véhicule ──
+  // expenseRecords inclut déjà les coûts de maintenance (fusion Historique Maintenance ↔
+  // Dépenses, voir utils/maintenance.ts) : ne pas rajouter maintenanceRecords ici, ça
+  // compterait ces coûts deux fois et fausserait le seuil de réforme.
   const exploitationCosts = useMemo(() => {
     const map = new Map<string, number>();
     vehicles.forEach((v) => {
-      const maint = maintenanceRecords
-        .filter((m) => m.vehicleId === v.id)
-        .reduce((s, m) => s + m.cout, 0);
       const expenses = expenseRecords
         .filter((e) => e.vehicleId === v.id)
         .reduce((s, e) => s + e.montant, 0);
-      map.set(v.id, maint + expenses + v.cout_assurance_annuel);
+      map.set(v.id, expenses + v.cout_assurance_annuel);
     });
     return map;
-  }, [vehicles, maintenanceRecords, expenseRecords]);
+  }, [vehicles, expenseRecords]);
 
   // ── Filtrage : intersection (ET) des critères cochés ──
   // Chaque critère activé réduit la liste. Seuls les véhicules respectant TOUS les critères actifs sont affichés.

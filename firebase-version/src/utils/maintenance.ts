@@ -1,4 +1,39 @@
-import type { ExpenseRecord, Vehicle } from '../types';
+import type { ExpenseRecord, MaintenanceRecord, Vehicle } from '../types';
+
+// ── Fusion Historique Maintenance ↔ Dépenses ──
+// Toute intervention de maintenance ayant un coût devient AUSSI une dépense
+// (catégorie "Entretien"), pour que les totaux du menu Dépenses, du Tableau de bord et
+// des fiches véhicule restent cohérents entre eux — une seule source de vérité.
+// Le lien entre les deux se fait par un identifiant déterministe (préfixe "exp-maint-"),
+// donc on peut toujours retrouver/mettre à jour/supprimer la dépense miroir sans champ
+// supplémentaire à stocker.
+const MAINTENANCE_EXPENSE_PREFIX = 'exp-maint-';
+
+export function maintenanceExpenseId(maintenanceId: string): string {
+  return MAINTENANCE_EXPENSE_PREFIX + maintenanceId;
+}
+
+export function isMaintenanceDerivedExpense(expenseId: string): boolean {
+  return expenseId.startsWith(MAINTENANCE_EXPENSE_PREFIX);
+}
+
+export function maintenanceToExpense(m: MaintenanceRecord): ExpenseRecord {
+  return {
+    id: maintenanceExpenseId(m.id),
+    vehicleId: m.vehicleId,
+    date: m.date,
+    categorie: 'Entretien',
+    libelle: m.description ? `${m.type} — ${m.description}` : m.type,
+    montant: m.cout,
+    fournisseur: '',
+    mode_paiement: '',
+    numero_piece: '',
+    justificatif_nom: '',
+    notes: 'Synchronisé automatiquement depuis Historique Maintenance.',
+    date_entretien: m.date,
+    kilometrage_entretien: m.kilometrage,
+  };
+}
 
 export type MaintenanceForecast = {
   hasHistory: boolean;

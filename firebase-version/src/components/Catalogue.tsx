@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { useCatalogue } from '../store/CatalogueStore';
 import DeleteGuardButton from './DeleteGuardButton';
+import SortDateButton, { type SortOrder } from './SortDateButton';
 import {
   Package, Plus, Printer, Search, Pencil, X, Info, Trash2,
   TrendingUp, TrendingDown, Minus, History, AlertTriangle, Scale, Check,
@@ -55,9 +56,9 @@ const VariationIcon = ({ icon }: { icon: 'up' | 'down' | 'flat' | 'new' }) => {
 export default function Catalogue() {
   const { pieces, setPieces, comparatifs, setComparatifs, deletePiece, deleteComparatifRow } = useCatalogue();
   const [activeTab, setActiveTab] = usePersistedState<'catalogue' | 'comparatif'>('fleetgest_catalogue_tab', 'catalogue');
-  const [showForm, setShowForm] = useState(false);
-  const [editPiece, setEditPiece] = useState<CataloguePiece | undefined>();
-  const [prefillNom, setPrefillNom] = useState('');
+  const [showForm, setShowForm] = usePersistedState('fleetgest_draft_catalogue_form_open', false);
+  const [editPieceId, setEditPieceId] = usePersistedState<string | null>('fleetgest_draft_catalogue_edit_id', null);
+  const [prefillNom, setPrefillNom] = usePersistedState('fleetgest_draft_catalogue_prefill', '');
   const [search, setSearch] = usePersistedState('fleetgest_filter_catalogue_search', '');
   const [fichePieceId, setFichePieceId] = useState<string | null>(null);
   const [selectedChartPieceId, setSelectedChartPieceId] = useState<string>('');
@@ -67,6 +68,7 @@ export default function Catalogue() {
   const [colonnes, setColonnes] = useState<string[]>(loadColonnes);
   const [showAddColonne, setShowAddColonne] = useState(false);
   const [newColonneName, setNewColonneName] = useState('');
+  const [comparatifSortOrder, setComparatifSortOrder] = usePersistedState<SortOrder>('fleetgest_sort_comparatif_date', 'desc');
 
   const save = (next: CataloguePiece[]) => setPieces(next);
   const saveComparatifs = (next: ComparatifRecord[]) => setComparatifs(next);
@@ -138,12 +140,12 @@ export default function Catalogue() {
       };
       save([...pieces, newPiece]);
     }
-    setShowForm(false); setEditPiece(undefined); setPrefillNom('');
+    setShowForm(false); setEditPieceId(null); setPrefillNom('');
   };
 
   const handleEditInfo = (data: { nom_piece: string; reference: string; observations: string }, id: string) => {
     save(pieces.map(p => p.id === id ? { ...p, nom_piece: data.nom_piece.trim() || p.nom_piece, reference: data.reference, observations: data.observations } : p));
-    setEditPiece(undefined); setShowForm(false);
+    setEditPieceId(null); setShowForm(false);
   };
 
   // Met à jour l'historique complet d'une pièce (édition/suppression d'une entrée de prix
@@ -227,7 +229,7 @@ export default function Catalogue() {
           </div>
           <div className="flex gap-2">
             {activeTab === 'catalogue' ? (
-              <button onClick={() => { setEditPiece(undefined); setPrefillNom(''); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter un prix</button>
+              <button onClick={() => { setEditPieceId(null); setPrefillNom(''); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter un prix</button>
             ) : (
               <button onClick={handleAddComparatifRow} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter une pièce</button>
             )}
@@ -304,7 +306,7 @@ export default function Catalogue() {
                           <td className="px-3 py-2"><span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${variation.badgeClass}`}><VariationIcon icon={variation.icon} />{variation.label}</span></td>
                           <td className="px-3 py-2 print:hidden">
                             <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                              <button onClick={() => { setPrefillNom(piece.nom_piece); setEditPiece(undefined); setShowForm(true); }} className="p-1 text-slate-400 hover:text-emerald-600" title="Ajouter un nouveau prix"><Plus className="h-3.5 w-3.5" /></button>
+                              <button onClick={() => { setPrefillNom(piece.nom_piece); setEditPieceId(null); setShowForm(true); }} className="p-1 text-slate-400 hover:text-emerald-600" title="Ajouter un nouveau prix"><Plus className="h-3.5 w-3.5" /></button>
                               <button onClick={() => setFichePieceId(piece.id)} className="p-1 text-slate-400 hover:text-blue-600" title="Ouvrir la fiche"><Pencil className="h-3.5 w-3.5" /></button>
                               <DeleteGuardButton module="catalogue" recordId={piece.id} label={`la pièce « ${piece.nom_piece} » et tout son historique de prix`} onDelete={() => deletePiece(piece.id)} className="p-1 text-slate-400 hover:text-red-600" title="Supprimer" />
                             </div>
@@ -397,14 +399,16 @@ export default function Catalogue() {
                           <button onClick={() => setShowAddColonne(true)} className="inline-flex items-center gap-1 font-semibold normal-case text-emerald-600 hover:text-emerald-800"><Plus className="h-3.5 w-3.5" /> Fournisseur</button>
                         )}
                       </th>
-                      <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">Date</th>
+                      <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        <span className="flex items-center gap-1.5 normal-case">Date<SortDateButton order={comparatifSortOrder} onToggle={() => setComparatifSortOrder(o => o === 'asc' ? 'desc' : 'asc')} /></span>
+                      </th>
                       <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 print:hidden"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {comparatifs.length === 0 ? (
                       <tr><td colSpan={comparatifColSpan} className="py-10 text-center text-slate-400">Aucune comparaison en cours — cliquez « Ajouter une pièce ».</td></tr>
-                    ) : comparatifs.map(row => {
+                    ) : comparatifs.slice().sort((a, b) => comparatifSortOrder === 'asc' ? (a.date_comparatif || '').localeCompare(b.date_comparatif || '') : (b.date_comparatif || '').localeCompare(a.date_comparatif || '')).map(row => {
                       const validPrices = colonnes.map(c => row.offres[c]).filter((v): v is number => v != null && v > 0);
                       const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
                       return (
@@ -450,14 +454,14 @@ export default function Catalogue() {
 
         {showForm && (
           <PriceFormModal
-            editPiece={editPiece}
+            editPiece={pieces.find(p => p.id === editPieceId)}
             prefillNom={prefillNom}
             knownPieceNames={knownPieceNames}
             knownSuppliers={knownSuppliers}
             pieces={pieces}
             onSavePrice={handleSavePrice}
             onEditInfo={handleEditInfo}
-            onClose={() => { setShowForm(false); setEditPiece(undefined); setPrefillNom(''); }}
+            onClose={() => { setShowForm(false); setEditPieceId(null); setPrefillNom(''); }}
           />
         )}
       </div>
@@ -489,12 +493,19 @@ function PriceFormModal({ editPiece, prefillNom, knownPieceNames, knownSuppliers
   onClose: () => void;
 }) {
   const isEditMode = !!editPiece;
-  const [nomPiece, setNomPiece] = useState(editPiece?.nom_piece || prefillNom || '');
-  const [reference, setReference] = useState(editPiece?.reference || '');
-  const [observations, setObservations] = useState(editPiece?.observations || '');
-  const [fournisseur, setFournisseur] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [valeur, setValeur] = useState('');
+  const draftKey = editPiece ? `fleetgest_draft_catalogue_edit_${editPiece.id}` : 'fleetgest_draft_catalogue_new';
+  const [nomPiece, setNomPiece] = usePersistedState(draftKey + '_nom', editPiece?.nom_piece || prefillNom || '');
+  const [reference, setReference] = usePersistedState(draftKey + '_ref', editPiece?.reference || '');
+  const [observations, setObservations] = usePersistedState(draftKey + '_obs', editPiece?.observations || '');
+  const [fournisseur, setFournisseur] = usePersistedState(draftKey + '_fourn', '');
+  const [date, setDate] = usePersistedState(draftKey + '_date', new Date().toISOString().slice(0, 10));
+  const [valeur, setValeur] = usePersistedState(draftKey + '_valeur', '');
+
+  const clearDraft = () => {
+    ['_nom', '_ref', '_obs', '_fourn', '_date', '_valeur'].forEach((suffix) => {
+      try { localStorage.removeItem(draftKey + suffix); } catch { /* ignore */ }
+    });
+  };
 
   const matched = useMemo(() => pieces.find(p => p.nom_piece.trim().toLowerCase() === nomPiece.trim().toLowerCase()), [pieces, nomPiece]);
 
@@ -509,10 +520,12 @@ function PriceFormModal({ editPiece, prefillNom, knownPieceNames, knownSuppliers
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isEditMode && editPiece) {
+      clearDraft();
       onEditInfo({ nom_piece: nomPiece, reference, observations }, editPiece.id);
       return;
     }
     if (!nomPiece.trim() || !fournisseur.trim() || !valeur) return;
+    clearDraft();
     onSavePrice({ nom_piece: nomPiece, reference, fournisseur, date, valeur: Number(valeur), observations }, matched?.id);
   };
 
@@ -586,7 +599,8 @@ function FicheModal({ piece, knownSuppliers, onUpdateHistorique, onEditInfo, onC
     [...piece.historique].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   );
   const [showAddRow, setShowAddRow] = useState(false);
-  const [newEntry, setNewEntry] = useState({ date: new Date().toISOString().slice(0, 10), valeur: '', fournisseur: '' });
+  const [newEntry, setNewEntry] = usePersistedState(`fleetgest_draft_catalogue_newentry_${piece.id}`, { date: new Date().toISOString().slice(0, 10), valeur: '', fournisseur: '' });
+  const [historySortOrder, setHistorySortOrder] = useState<SortOrder>('desc');
 
   const updateRow = (id: string, patch: Partial<PriceHistoryEntry>) => {
     const next = rows.map(r => r.id === id ? { ...r, ...patch } : r);
@@ -608,6 +622,7 @@ function FicheModal({ piece, knownSuppliers, onUpdateHistorique, onEditInfo, onC
     const next = [entry, ...rows];
     setRows(next);
     onUpdateHistorique(piece.id, next);
+    try { localStorage.removeItem(`fleetgest_draft_catalogue_newentry_${piece.id}`); } catch { /* ignore */ }
     setNewEntry({ date: new Date().toISOString().slice(0, 10), valeur: '', fournisseur: '' });
     setShowAddRow(false);
   };
@@ -645,7 +660,10 @@ function FicheModal({ piece, knownSuppliers, onUpdateHistorique, onEditInfo, onC
 
         <div className="p-6">
           <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-bold text-slate-800">Historique des prix ({rows.length})</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold text-slate-800">Historique des prix ({rows.length})</h4>
+              <SortDateButton order={historySortOrder} onToggle={() => setHistorySortOrder(o => o === 'asc' ? 'desc' : 'asc')} />
+            </div>
             <button onClick={() => setShowAddRow(v => !v)} className="print:hidden inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"><Plus className="h-3.5 w-3.5" /> Ajouter un prix</button>
           </div>
 
@@ -666,8 +684,8 @@ function FicheModal({ piece, knownSuppliers, onUpdateHistorique, onEditInfo, onC
           )}
 
           <div className="space-y-2">
-            {rows.map((h, i) => {
-              const prev = rows[i + 1];
+            {[...rows].sort((a, b) => historySortOrder === 'asc' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime()).map((h, i, displayRows) => {
+              const prev = historySortOrder === 'asc' ? displayRows[i - 1] : displayRows[i + 1];
               const diff = prev ? h.valeur - prev.valeur : null;
               return (
                 <div key={h.id} className="grid grid-cols-[1fr_1fr_1.4fr_auto_auto] items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 p-2.5 print:border-b print:border-slate-200 print:bg-white print:rounded-none">

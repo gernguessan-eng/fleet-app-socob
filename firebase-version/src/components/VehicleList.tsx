@@ -25,8 +25,9 @@ export default function VehicleList() {
   const { requestDeletion } = useDeletionRequests();
   const [search, setSearch]           = usePersistedState('fleetgest_filter_vehicles_search', '');
   const [filterStatus, setFilterStatus] = usePersistedState('fleetgest_filter_vehicles_status', '');
-  const [showForm, setShowForm]       = useState(false);
-  const [editVehicle, setEditVehicle] = useState<Vehicle | undefined>();
+  const [showForm, setShowForm]       = usePersistedState('fleetgest_draft_vehicle_form_open', false);
+  const [editVehicleId, setEditVehicleId] = usePersistedState<string | null>('fleetgest_draft_vehicle_edit_id', null);
+  const editVehicle = editVehicleId ? vehicles.find(v => v.id === editVehicleId) : undefined;
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlyId, setPrintOnlyId] = useState<string | null>(null);
@@ -122,8 +123,8 @@ export default function VehicleList() {
     }
   };
 
-  const handleEdit = (v: Vehicle) => { setEditVehicle(v); setShowForm(true); };
-  const handleAdd  = () => { setEditVehicle(undefined); setShowForm(true); };
+  const handleEdit = (v: Vehicle) => { setEditVehicleId(v.id); setShowForm(true); };
+  const handleAdd  = () => { setEditVehicleId(null); setShowForm(true); };
 
   const statusOptions = [
     { value: '', label: 'Tous' },
@@ -388,8 +389,8 @@ export default function VehicleList() {
       {showForm && (
         <VehicleForm
           vehicle={editVehicle}
-          onSave={() => { setShowForm(false); setEditVehicle(undefined); setCurrentPage(1); }}
-          onClose={() => { setShowForm(false); setEditVehicle(undefined); }}
+          onSave={() => { setShowForm(false); setEditVehicleId(null); setCurrentPage(1); }}
+          onClose={() => { setShowForm(false); setEditVehicleId(null); }}
         />
       )}
     </div>

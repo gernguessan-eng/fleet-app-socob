@@ -3,6 +3,7 @@ import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { Plus, Printer, Search, Pencil, X, AlertTriangle, Upload, Info } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
+import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { ImmobilisationRecord } from '../types/immobilisations';
 
 export type { ImmobilisationRecord };
@@ -26,11 +27,12 @@ export default function Immobilisations() {
   // Source unique de vérité : le store central (plus de localStorage local à
   // ce composant), pour que Véhicules et Tableau de bord soient toujours à jour.
   const { vehicles, immobilisations: records, addImmobilisation, updateImmobilisation, deleteImmobilisation } = useVehicles();
-  const [showForm, setShowForm] = useState(false);
-  const [editRecord, setEditRecord] = useState<ImmobilisationRecord | undefined>();
+  const [showForm, setShowForm] = usePersistedState('fleetgest_draft_immob_form_open', false);
+  const [editRecordId, setEditRecordId] = usePersistedState<string | null>('fleetgest_draft_immob_edit_id', null);
   const [search, setSearch] = usePersistedState('fleetgest_filter_immob_search', '');
   const [periodFrom, setPeriodFrom] = usePersistedState('fleetgest_filter_immob_from', '');
   const [periodTo, setPeriodTo] = usePersistedState('fleetgest_filter_immob_to', '');
+  const [sortOrder, setSortOrder] = usePersistedState<SortOrder>('fleetgest_sort_immob_date', 'desc');
 
   const vehicleById = useMemo(() => new Map(vehicles.map(v => [v.id, v])), [vehicles]);
 
@@ -42,8 +44,8 @@ export default function Immobilisations() {
       const matchFrom = !periodFrom || r.date_entree >= periodFrom;
       const matchTo = !periodTo || r.date_entree <= periodTo;
       return matchSearch && matchFrom && matchTo;
-    }).sort((a, b) => new Date(b.date_entree).getTime() - new Date(a.date_entree).getTime());
-  }, [records, search, vehicleById, periodFrom, periodTo]);
+    }).sort((a, b) => sortOrder === 'asc' ? new Date(a.date_entree).getTime() - new Date(b.date_entree).getTime() : new Date(b.date_entree).getTime() - new Date(a.date_entree).getTime());
+  }, [records, search, vehicleById, periodFrom, periodTo, sortOrder]);
 
   const stats = useMemo(() => {
     const enCours = records.filter(r => r.statut !== 'Terminé').length;
@@ -58,7 +60,7 @@ export default function Immobilisations() {
   const handleSave = (data: Omit<ImmobilisationRecord, 'id'>, id?: string) => {
     if (id) updateImmobilisation(id, data);
     else addImmobilisation({ ...data, id: 'imm' + Date.now() });
-    setShowForm(false); setEditRecord(undefined);
+    setShowForm(false); setEditRecordId(null);
     // Le véhicule concerné passe automatiquement en "En maintenance" si le
     // dossier n'est pas "Terminé", ou repasse "Actif" s'il n'a plus aucun
     // dossier actif — cf. menu Véhicules et Tableau de bord (mise à jour
@@ -70,7 +72,7 @@ export default function Immobilisations() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-6 shadow-sm print:hidden">
         <div><h2 className="text-2xl font-bold text-slate-900">Suivi des Immo-Garages Extérieurs</h2><p className="mt-1 text-sm text-slate-500">Suivi des véhicules en garage : durée, travaux, coûts</p></div>
         <div className="flex gap-2">
-          <button onClick={() => { setEditRecord(undefined); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Nouvelle entrée</button>
+          <button onClick={() => { setEditRecordId(null); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Nouvelle entrée</button>
           <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer"><Upload className="h-4 w-4" /><input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={() => {}} /></label>
           <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"><Printer className="h-4 w-4" /> Imprimer</button>
         </div>
@@ -100,7 +102,7 @@ export default function Immobilisations() {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50"><tr>{['Véhicule', 'Garage', 'Travaux', 'Entrée', 'Sortie prévue', 'Sortie réelle', 'Durée', 'Coût', 'Statut', ''].map(h => <th key={h} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{h}</th>)}</tr></thead>
+            <thead className="bg-slate-50"><tr>{['Véhicule', 'Garage', 'Travaux', '', 'Sortie prévue', 'Sortie réelle', 'Durée', 'Coût', 'Statut', ''].map((h, i) => <th key={h + i} className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{i === 3 ? <span className="flex items-center gap-1.5 normal-case">Entrée<SortDateButton order={sortOrder} onToggle={() => setSortOrder(o => o === 'asc' ? 'desc' : 'asc')} /></span> : h}</th>)}</tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? <tr><td colSpan={10} className="py-10 text-center text-slate-400">Aucune immobilisation</td></tr> :
                 filtered.map(r => {
@@ -123,7 +125,7 @@ export default function Immobilisations() {
                       <td className="px-3 py-2"><span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUT_COLORS[r.statut]}`}>{r.statut}</span></td>
                       <td className="px-3 py-2 print:hidden">
                         <div className="flex gap-1">
-                          <button onClick={() => { setEditRecord(r); setShowForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => { setEditRecordId(r.id); setShowForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
                           <DeleteGuardButton
                             module="immobilisations"
                             recordId={r.id}
@@ -141,13 +143,14 @@ export default function Immobilisations() {
         </div>
       </div>
 
-      {showForm && <ImmobilisationFormModal record={editRecord} vehicles={vehicles} onSave={handleSave} onClose={() => { setShowForm(false); setEditRecord(undefined); }} />}
+      {showForm && <ImmobilisationFormModal record={records.find(r => r.id === editRecordId)} vehicles={vehicles} onSave={handleSave} onClose={() => { setShowForm(false); setEditRecordId(null); }} />}
     </div>
   );
 }
 
 function ImmobilisationFormModal({ record, vehicles, onSave, onClose }: { record?: ImmobilisationRecord; vehicles: { id: string; numero_immatriculation: string }[]; onSave: (data: Omit<ImmobilisationRecord, 'id'>, id?: string) => void; onClose: () => void }) {
-  const [f, setF] = useState({
+  const draftKey = record ? `fleetgest_draft_immob_edit_${record.id}` : 'fleetgest_draft_immob_new';
+  const [f, setF] = usePersistedState(draftKey, {
     vehicleId: record?.vehicleId || vehicles[0]?.id || '', garage: record?.garage || '', date_entree: record?.date_entree || new Date().toISOString().slice(0, 10),
     date_sortie_prevue: record?.date_sortie_prevue || '', date_sortie_reelle: record?.date_sortie_reelle || '', travaux: record?.travaux || '',
     statut: (record?.statut || 'En cours') as ImmobilisationRecord['statut'], cout_estime: record?.cout_estime || 0, cout_final: record?.cout_final || 0, observations: record?.observations || '',
@@ -158,6 +161,7 @@ function ImmobilisationFormModal({ record, vehicles, onSave, onClose }: { record
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.observations.trim()) { setObsError(true); return; }
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     onSave(f, record?.id);
   };
 

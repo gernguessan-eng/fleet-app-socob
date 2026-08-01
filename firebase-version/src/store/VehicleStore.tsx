@@ -4,6 +4,7 @@ import { IMMOBILISATIONS_STORAGE_KEY, SAMPLE_IMMOBILISATIONS, type Immobilisatio
 import { SINISTRES_STORAGE_KEY, SAMPLE_SINISTRES, type SinistreRecord } from '../types/sinistres';
 import { SAMPLE_PNEUS, type PneumatiqueRecord } from '../types/pneumatique';
 import { useFirestoreCollection } from '../firestoreSync';
+import { maintenanceExpenseId, maintenanceToExpense } from '../utils/maintenance';
 
 const STORAGE_KEY_VEHICLES = 'parc_auto_vehicles';
 const STORAGE_KEY_MAINTENANCE = 'parc_auto_maintenance';
@@ -2096,6 +2097,21 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [immobilisations, sinistres]);
 
+  // ── Réconciliation rétroactive ──
+  // Les interventions de maintenance créées AVANT la mise en place de la fusion
+  // Historique Maintenance ↔ Dépenses n'ont pas encore de dépense miroir. On les
+  // rattrape automatiquement ici, une seule fois par changement, sans action requise
+  // de l'utilisateur — ça corrige immédiatement les totaux jusque-là incohérents.
+  useEffect(() => {
+    const missing = maintenanceRecords.filter(
+      (m) => m.cout > 0 && !expenseRecords.some((e) => e.id === maintenanceExpenseId(m.id))
+    );
+    if (missing.length > 0) {
+      setExpenseRecords((prev) => [...prev, ...missing.map(maintenanceToExpense)]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maintenanceRecords, expenseRecords]);
+
   const addVehicle = useCallback((vehicle: Vehicle) => {
     setVehicles((prev) => [...prev, vehicle]);
   }, []);
@@ -2119,10 +2135,16 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
 
   const addMaintenanceRecord = useCallback((record: MaintenanceRecord) => {
     setMaintenanceRecords((prev) => [...prev, record]);
+    // Fusion : toute intervention avec un coût devient aussi une dépense (catégorie
+    // "Entretien"), pour que Dépenses / Tableau de bord / fiches véhicule restent cohérents.
+    if (record.cout > 0) {
+      setExpenseRecords((prev) => [...prev, maintenanceToExpense(record)]);
+    }
   }, []);
 
   const deleteMaintenanceRecord = useCallback((id: string) => {
     setMaintenanceRecords((prev) => prev.filter((m) => m.id !== id));
+    setExpenseRecords((prev) => prev.filter((e) => e.id !== maintenanceExpenseId(id)));
   }, []);
 
   const addExpenseRecord = useCallback((record: ExpenseRecord) => {
@@ -2204,11 +2226,13 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
     const avgKilometers = vehicles.length > 0 ? totalKilometers / vehicles.length : 0;
     const totalAcquisitionCost = vehicles.reduce((sum, v) => sum + v.cout_achat + (v.frais_livraison || 0) + (v.frais_douane || 0) + (v.frais_installation || 0), 0);
     const totalInsuranceCost = vehicles.reduce((sum, v) => sum + v.cout_assurance_annuel, 0);
-    const totalMaintenanceCost = maintenanceRecords.reduce((sum, record) => sum + record.cout, 0);
     const totalExpenseCost = expenseRecords.reduce((sum, expense) => sum + expense.montant, 0);
     const totalIndirectCosts = vehicles.reduce((sum, v) => sum + (v.couts_indirects || 0), 0);
     const totalResidualValue = vehicles.reduce((sum, v) => sum + (v.valeur_residuelle || 0), 0);
-    const totalOperatingCost = totalInsuranceCost + totalMaintenanceCost + totalExpenseCost;
+    // totalExpenseCost inclut déjà les coûts de maintenance (fusion Historique Maintenance
+    // ↔ Dépenses, voir utils/maintenance.ts) : ne pas rajouter maintenanceRecords.cout ici,
+    // ça compterait ces coûts deux fois.
+    const totalOperatingCost = totalInsuranceCost + totalExpenseCost;
     const avgExpensePerVehicle = vehicles.length > 0 ? totalExpenseCost / vehicles.length : 0;
     
     // TCO = Coûts d'acquisition + Coûts d'exploitation + Coûts indirects - Valeur résiduelle
@@ -2258,22 +2282,6 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
     const brandDistribution = Array.from(brandMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-
-    const monthMap = new Map<string, number>();
-    maintenanceRecords.forEach((m) => {
-      const d = new Date(m.date);
-      const key = d.toLocaleString('fr-FR', { month: 'short', year: 'numeric' });
-      monthMap.set(key, (monthMap.get(key) || 0) + m.cout);
-    });
-    expenseRecords.forEach((expense) => {
-      const d = new Date(expense.date);
-      const key = d.toLocaleString('fr-FR', { month: 'short', year: 'numeric' });
-      monthMap.set(key, (monthMap.get(key) || 0) + expense.montant);
-    });
-    const monthlyCosts = Array.from(monthMap.entries())
-      .map(([month, cost]) => ({ month, cost }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
-      .slice(-6);
 
     const expenseMonthMap = new Map<string, number>();
     expenseRecords.forEach((expense) => {
@@ -2332,7 +2340,6 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
       upcomingCarteStationnement,
       energyDistribution,
       brandDistribution,
-      monthlyCosts,
       monthlyExpenses,
       expenseCategoryDistribution,
       vehicleAgeDistribution,

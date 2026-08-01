@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { useVehicles } from '../store/VehicleStore';
 import type { Vehicle, MaintenanceRecord } from '../types';
 import {
   Car, MapPin, User, Gauge, Calendar, Shield, FileText,
   Wrench, AlertCircle, DollarSign, Info, Hash, Fuel, Receipt, Camera, Upload, X,
 } from 'lucide-react';
-import { getVehicleMaintenanceForecast } from '../utils/maintenance';
+import { getVehicleMaintenanceForecast, isMaintenanceDerivedExpense } from '../utils/maintenance';
 import { uploadVehicleImage, validateImageFile } from '../utils/uploadImage';
 import DeleteGuardButton from './DeleteGuardButton';
+import SortDateButton, { type SortOrder } from './SortDateButton';
 
 interface Props { vehicle: Vehicle; printMode?: boolean; }
 
@@ -27,19 +29,21 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
     expenseRecords, deleteExpenseRecord, updateVehicle,
   } = useVehicles();
 
-  const [showMaintForm, setShowMaintForm] = useState(false);
-  const [maintForm, setMaintForm]         = useState({ date: '', type: '', description: '', cout: '', kilometrage: '' });
+  const [showMaintForm, setShowMaintForm] = usePersistedState(`fleetgest_draft_maint_form_open_${vehicle.id}`, false);
+  const [maintForm, setMaintForm]         = usePersistedState(`fleetgest_draft_maint_new_${vehicle.id}`, { date: '', type: '', description: '', cout: '', kilometrage: '' });
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [docUploading, setDocUploading] = useState<string | null>(null);
+  const [maintSortOrder, setMaintSortOrder] = useState<SortOrder>('desc');
+  const [expensesSortOrder, setExpensesSortOrder] = useState<SortOrder>('desc');
 
   const vehicleMaintenance = maintenanceRecords
     .filter((m) => m.vehicleId === vehicle.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => maintSortOrder === 'asc' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const vehicleExpenses = expenseRecords
     .filter((e) => e.vehicleId === vehicle.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => expensesSortOrder === 'asc' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const totalExpenses    = vehicleExpenses.reduce((s, e) => s + e.montant, 0);
   const totalMaintenance = vehicleMaintenance.reduce((s, m) => s + m.cout, 0);
@@ -234,7 +238,10 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Dépenses totales</p>
-              <p className="text-xl font-bold text-orange-600">{formatMoney(totalExpenses + totalMaintenance)}</p>
+              {/* totalExpenses inclut déjà les coûts de maintenance (fusion Historique
+                  Maintenance ↔ Dépenses, voir utils/maintenance.ts) — ne pas rajouter
+                  totalMaintenance ici, ça compterait ces coûts deux fois. */}
+              <p className="text-xl font-bold text-orange-600">{formatMoney(totalExpenses)}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Proch. entretien</p>
@@ -305,7 +312,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
             <EcheanceRow label="Patente"               date={vehicle.validite_patente || ''} days={daysUntil(vehicle.validite_patente || '')} />
             <EcheanceRow label="Carte de stationnement" date={vehicle.validite_carte_stationnement || ''} days={daysUntil(vehicle.validite_carte_stationnement || '')} />
             <Row icon={<Receipt className="h-4 w-4" />} label="Dépenses enregistrées" value={formatMoney(totalExpenses)} />
-            <Row icon={<Wrench className="h-4 w-4" />}  label="Coûts maintenance"    value={formatMoney(totalMaintenance)} />
+            <Row icon={<Wrench className="h-4 w-4" />}  label="dont coûts maintenance" value={formatMoney(totalMaintenance)} />
             <Row icon={<User className="h-4 w-4" />}    label="Conducteur"           value={vehicle.conducteur || '—'} />
             <Row icon={<MapPin className="h-4 w-4" />}  label="Affectation"          value={vehicle.affectation || '—'} />
             <Row icon={<MapPin className="h-4 w-4" />}  label="Zone d'affectation"   value={vehicle.zone_affectation || '—'} />
@@ -376,7 +383,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
 
         {/* Maintenance + Dépenses */}
         <div className="space-y-4">
-          <Card title={<><Wrench className="h-4 w-4" /> Historique Maintenance</>}>
+          <Card title={<><Wrench className="h-4 w-4" /> Historique Maintenance<SortDateButton order={maintSortOrder} onToggle={() => setMaintSortOrder(o => o === 'asc' ? 'desc' : 'asc')} className="ml-1 print:hidden inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-500 hover:border-emerald-300 hover:text-emerald-700" /></>}>
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm text-slate-500">
                 {vehicleMaintenance.length} intervention(s) — {formatMoney(totalMaintenance)}
@@ -437,12 +444,14 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
             )}
           </Card>
 
-          <Card title={<><Receipt className="h-4 w-4" /> Dépenses du Véhicule</>}>
+          <Card title={<><Receipt className="h-4 w-4" /> Dépenses du Véhicule<SortDateButton order={expensesSortOrder} onToggle={() => setExpensesSortOrder(o => o === 'asc' ? 'desc' : 'asc')} className="ml-1 print:hidden inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-500 hover:border-emerald-300 hover:text-emerald-700" /></>}>
             <p className="mb-3 text-sm text-slate-500">{vehicleExpenses.length} dépense(s) — {formatMoney(totalExpenses)}</p>
             {vehicleExpenses.length > 0 ? (
               <div className="max-h-56 space-y-2 overflow-y-auto">
-                {vehicleExpenses.slice(0, 8).map((exp) => (
-                  <div key={exp.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                {vehicleExpenses.slice(0, 8).map((exp) => {
+                  const fromMaintenance = isMaintenanceDerivedExpense(exp.id);
+                  return (
+                  <div key={exp.id} className={`rounded-lg border border-slate-100 p-3 ${fromMaintenance ? 'bg-blue-50/40' : 'bg-slate-50'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-sm font-semibold text-slate-800">{exp.libelle}</p>
@@ -453,11 +462,12 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
                             {exp.date_entretien ? ` le ${formatDate(exp.date_entretien)}` : ''}
                           </p>
                         ) : null}
+                        {fromMaintenance && <p className="mt-0.5 text-xs font-medium text-blue-600">🔧 Depuis Historique Maintenance — à gérer ci-dessus</p>}
                         {exp.fournisseur && <p className="mt-0.5 text-xs text-slate-400">{exp.fournisseur}</p>}
                       </div>
                       <div className="flex items-center gap-2">
                         <p className={`whitespace-nowrap text-sm font-bold ${exp.montant < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>{formatMoney(exp.montant)}</p>
-                        {!printMode && (
+                        {!printMode && !fromMaintenance && (
                           <DeleteGuardButton
                             module="depenses"
                             recordId={exp.id}
@@ -471,7 +481,8 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="py-4 text-center text-sm text-slate-400">Aucune dépense enregistrée</p>

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useDrivers } from '../store/DriverStore';
 import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
+import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { Driver, Mission, PlanningEvent } from '../types';
 import {
   Users, ClipboardList, CalendarDays, Plus, Pencil, Search,
@@ -40,7 +41,8 @@ const emptyDriver: Omit<Driver, 'id'> = { nom: '', prenom: '', telephone: '', em
 function DriverFormModal({ driver, vehicles, onSave, onClose }: {
   driver?: Driver; vehicles: { id: string; label: string }[]; onSave: (data: Omit<Driver, 'id'>) => void; onClose: () => void;
 }) {
-  const [f, setF] = useState<Omit<Driver, 'id'>>(driver ? { ...driver } : { ...emptyDriver });
+  const draftKey = driver ? `fleetgest_draft_driver_edit_${driver.id}` : 'fleetgest_draft_driver_new';
+  const [f, setF] = usePersistedState<Omit<Driver, 'id'>>(draftKey, driver ? { ...driver } : { ...emptyDriver });
   const up = (k: string, v: string) => setF(p => ({ ...p, [k]: v }));
   const inp = (label: string, key: string, type = 'text', placeholder?: string) => (
     <label className="block text-xs font-medium text-slate-600">{label}
@@ -60,7 +62,7 @@ function DriverFormModal({ driver, vehicles, onSave, onClose }: {
           <h3 className="text-lg font-bold text-slate-900">{driver ? 'Modifier le chauffeur' : 'Ajouter un chauffeur'}</h3>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
         </div>
-        <form onSubmit={e => { e.preventDefault(); onSave(f); }} className="grid grid-cols-2 gap-4 p-6">
+        <form onSubmit={e => { e.preventDefault(); try { localStorage.removeItem(draftKey); } catch { /* ignore */ } onSave(f); }} className="grid grid-cols-2 gap-4 p-6">
           {inp('Nom', 'nom')}{inp('Prénom', 'prenom')}{inp('Téléphone', 'telephone', 'tel')}{inp('Email', 'email', 'email')}
           {inp('N° Permis', 'numero_permis')}
           <label className="block text-xs font-medium text-slate-600">Catégorie permis
@@ -101,7 +103,8 @@ const emptyMission: Omit<Mission, 'id'> = { driverId: '', vehicleId: '', titre: 
 function MissionFormModal({ mission, drivers, vehicles, existingMissions, onSave, onClose }: {
   mission?: Mission; drivers: Driver[]; vehicles: { id: string; label: string }[]; existingMissions: Mission[]; onSave: (data: Omit<Mission, 'id'>) => void; onClose: () => void;
 }) {
-  const [f, setF] = useState<Omit<Mission, 'id'>>(mission ? { ...mission } : { ...emptyMission });
+  const draftKey = mission ? `fleetgest_draft_mission_edit_${mission.id}` : 'fleetgest_draft_mission_new';
+  const [f, setF] = usePersistedState<Omit<Mission, 'id'>>(draftKey, mission ? { ...mission } : { ...emptyMission });
   const [error, setError] = useState('');
   const up = (k: string, v: string | number) => { setF(p => ({ ...p, [k]: v })); setError(''); };
   const inp = (label: string, key: string, type = 'text', placeholder?: string) => (
@@ -142,6 +145,7 @@ function MissionFormModal({ mission, drivers, vehicles, existingMissions, onSave
     e.preventDefault();
     const overlap = checkOverlap();
     if (overlap) { setError(overlap); return; }
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     onSave(f);
   };
 
@@ -201,7 +205,8 @@ const emptyEvent: Omit<PlanningEvent, 'id'> = { driverId: '', vehicleId: '', tit
 function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave, onClose }: {
   event?: PlanningEvent; drivers: Driver[]; vehicles: { id: string; label: string }[]; existingPlanning: PlanningEvent[]; onSave: (data: Omit<PlanningEvent, 'id'>) => void; onClose: () => void;
 }) {
-  const [f, setF] = useState<Omit<PlanningEvent, 'id'>>(event ? { ...event } : { ...emptyEvent });
+  const draftKey = event ? `fleetgest_draft_planning_edit_${event.id}` : 'fleetgest_draft_planning_new';
+  const [f, setF] = usePersistedState<Omit<PlanningEvent, 'id'>>(draftKey, event ? { ...event } : { ...emptyEvent });
   const [error, setError] = useState('');
   const up = (k: string, v: string) => { setF(p => ({ ...p, [k]: v })); setError(''); };
 
@@ -229,6 +234,7 @@ function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave,
     e.preventDefault();
     const overlap = checkOverlap();
     if (overlap) { setError(overlap); return; }
+    try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     onSave(f);
   };
 
@@ -290,14 +296,16 @@ export default function DriverManagement() {
   const { vehicles } = useVehicles();
   const [tab, setTab] = usePersistedState<'chauffeurs' | 'missions' | 'planning'>('fleetgest_filter_drivers_tab', 'chauffeurs');
   const [search, setSearch] = usePersistedState('fleetgest_filter_drivers_search', '');
+  const [missionsSortOrder, setMissionsSortOrder] = usePersistedState<SortOrder>('fleetgest_sort_missions_date', 'desc');
+  const [planningSortOrder, setPlanningSortOrder] = usePersistedState<SortOrder>('fleetgest_sort_planning_date', 'asc');
 
   // Modals
-  const [showDriverForm, setShowDriverForm] = useState(false);
-  const [editDriver, setEditDriver] = useState<Driver | undefined>();
-  const [showMissionForm, setShowMissionForm] = useState(false);
-  const [editMission, setEditMission] = useState<Mission | undefined>();
-  const [showPlanningForm, setShowPlanningForm] = useState(false);
-  const [editEvent, setEditEvent] = useState<PlanningEvent | undefined>();
+  const [showDriverForm, setShowDriverForm] = usePersistedState('fleetgest_draft_driver_form_open', false);
+  const [editDriverId, setEditDriverId] = usePersistedState<string | null>('fleetgest_draft_driver_edit_id', null);
+  const [showMissionForm, setShowMissionForm] = usePersistedState('fleetgest_draft_mission_form_open', false);
+  const [editMissionId, setEditMissionId] = usePersistedState<string | null>('fleetgest_draft_mission_edit_id', null);
+  const [showPlanningForm, setShowPlanningForm] = usePersistedState('fleetgest_draft_planning_form_open', false);
+  const [editEventId, setEditEventId] = usePersistedState<string | null>('fleetgest_draft_planning_edit_id', null);
 
   const vehicleOptions = useMemo(() => vehicles.map(v => ({ id: v.id, label: `${v.numero_immatriculation} — ${v.marque} ${v.type_commercial}` })), [vehicles]);
   const driverById = useMemo(() => new Map(drivers.map(d => [d.id, d])), [drivers]);
@@ -387,7 +395,7 @@ export default function DriverManagement() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un chauffeur…" className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </div>
-            <button onClick={() => { setEditDriver(undefined); setShowDriverForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter</button>
+            <button onClick={() => { setEditDriverId(null); setShowDriverForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter</button>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -407,7 +415,7 @@ export default function DriverManagement() {
                       </div>
                     </div>
                     <div className="flex gap-1 print:hidden">
-                      <button onClick={() => { setEditDriver(d); setShowDriverForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => { setEditDriverId(d.id); setShowDriverForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
                       <DeleteGuardButton module="chauffeurs" recordId={d.id} label={`le chauffeur ${d.prenom} ${d.nom}`} onDelete={() => deleteDriver(d.id)} className="p-1 text-slate-400 hover:text-red-600" />
                     </div>
                   </div>
@@ -426,13 +434,13 @@ export default function DriverManagement() {
           </div>
           {showDriverForm && (
             <DriverFormModal
-              driver={editDriver}
+              driver={drivers.find(d => d.id === editDriverId)}
               vehicles={vehicleOptions}
-              onClose={() => { setShowDriverForm(false); setEditDriver(undefined); }}
+              onClose={() => { setShowDriverForm(false); setEditDriverId(null); }}
               onSave={data => {
-                if (editDriver) updateDriver(editDriver.id, data);
+                if (editDriverId) updateDriver(editDriverId, data);
                 else addDriver({ ...data, id: 'dr' + Date.now() });
-                setShowDriverForm(false); setEditDriver(undefined);
+                setShowDriverForm(false); setEditDriverId(null);
               }}
             />
           )}
@@ -443,20 +451,26 @@ export default function DriverManagement() {
       {tab === 'missions' && (
         <div className="space-y-4">
           <div className="flex justify-end print:hidden">
-            <button onClick={() => { setEditMission(undefined); setShowMissionForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Nouvelle mission</button>
+            <button onClick={() => { setEditMissionId(null); setShowMissionForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Nouvelle mission</button>
           </div>
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    {['Mission', 'Chauffeur', 'Véhicule', 'Trajet', 'Dates', 'Km', 'Coût', 'Statut', ''].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>)}
+                    {['Mission', 'Chauffeur', 'Véhicule', 'Trajet', '', 'Km', 'Coût', 'Statut', ''].map((h, i) => (
+                      <th key={h + i} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                        {h === '' && i === 4 ? (
+                          <span className="flex items-center gap-1.5 normal-case">Dates<SortDateButton order={missionsSortOrder} onToggle={() => setMissionsSortOrder(o => o === 'asc' ? 'desc' : 'asc')} /></span>
+                        ) : h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {missions.length === 0 ? (
                     <tr><td colSpan={9} className="py-10 text-center text-slate-400">Aucune mission</td></tr>
-                  ) : missions.sort((a, b) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime()).map(m => {
+                  ) : missions.slice().sort((a, b) => missionsSortOrder === 'asc' ? new Date(a.date_debut).getTime() - new Date(b.date_debut).getTime() : new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime()).map(m => {
                     const dr = driverById.get(m.driverId);
                     const ve = vehicleById.get(m.vehicleId);
                     return (
@@ -471,7 +485,7 @@ export default function DriverManagement() {
                         <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUT_MISSION_COLORS[m.statut]}`}>{m.statut}</span></td>
                         <td className="px-4 py-3 print:hidden">
                           <div className="flex gap-1">
-                            <button onClick={() => { setEditMission(m); setShowMissionForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => { setEditMissionId(m.id); setShowMissionForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
                             <DeleteGuardButton
                               module="missions"
                               recordId={m.id}
@@ -494,21 +508,21 @@ export default function DriverManagement() {
           </div>
           {showMissionForm && (
             <MissionFormModal
-              mission={editMission}
+              mission={missions.find(m => m.id === editMissionId)}
               drivers={drivers}
               vehicles={vehicleOptions}
               existingMissions={missions}
-              onClose={() => { setShowMissionForm(false); setEditMission(undefined); }}
+              onClose={() => { setShowMissionForm(false); setEditMissionId(null); }}
               onSave={data => {
-                if (editMission) {
-                  updateMission(editMission.id, data);
+                if (editMissionId) {
+                  updateMission(editMissionId, data);
                 } else {
                   const newId = 'mi' + Date.now();
                   const newMission = { ...data, id: newId } as Mission;
                   addMission(newMission);
                 }
                 setShowMissionForm(false);
-                setEditMission(undefined);
+                setEditMissionId(null);
                 setTab('planning');
               }}
             />
@@ -520,7 +534,7 @@ export default function DriverManagement() {
       {tab === 'planning' && (
         <div className="space-y-4">
           <div className="flex justify-end print:hidden">
-            <button onClick={() => { setEditEvent(undefined); setShowPlanningForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Nouvelle planification</button>
+            <button onClick={() => { setEditEventId(null); setShowPlanningForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Nouvelle planification</button>
           </div>
 
           {/* Calendar Grid — 4 weeks */}
@@ -545,7 +559,7 @@ export default function DriverManagement() {
                         return (
                           <button
                             key={ev.id}
-                            onClick={() => { setEditEvent(ev); setShowPlanningForm(true); }}
+                            onClick={() => { setEditEventId(ev.id); setShowPlanningForm(true); }}
                             className="w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-medium text-white"
                             style={{ backgroundColor: ev.couleur || '#10b981' }}
                             title={`${ev.titre} — ${dr ? dr.prenom + ' ' + dr.nom : ''}`}
@@ -564,9 +578,12 @@ export default function DriverManagement() {
 
           {/* Event list below calendar */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-sm font-bold text-slate-700">Tous les événements</h3>
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-700">Tous les événements</h3>
+              <SortDateButton order={planningSortOrder} onToggle={() => setPlanningSortOrder(o => o === 'asc' ? 'desc' : 'asc')} />
+            </div>
             <div className="space-y-2 max-h-72 overflow-y-auto">
-              {planning.length === 0 ? <p className="text-sm text-slate-400 text-center py-4">Aucun événement planifié</p> : planning.sort((a, b) => a.date_debut.localeCompare(b.date_debut)).map(ev => {
+              {planning.length === 0 ? <p className="text-sm text-slate-400 text-center py-4">Aucun événement planifié</p> : planning.slice().sort((a, b) => planningSortOrder === 'asc' ? a.date_debut.localeCompare(b.date_debut) : b.date_debut.localeCompare(a.date_debut)).map(ev => {
                 const dr = driverById.get(ev.driverId);
                 const ve = vehicleById.get(ev.vehicleId);
                 return (
@@ -578,7 +595,7 @@ export default function DriverManagement() {
                     </div>
                     <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600">{ev.type}</span>
                     <div className="flex gap-1 print:hidden">
-                      <button onClick={() => { setEditEvent(ev); setShowPlanningForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => { setEditEventId(ev.id); setShowPlanningForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
                       <DeleteGuardButton module="planning" recordId={ev.id} label={`l'événement « ${ev.titre} »`} onDelete={() => deletePlanningEvent(ev.id)} className="p-1 text-slate-400 hover:text-red-600" />
                     </div>
                   </div>
@@ -589,14 +606,14 @@ export default function DriverManagement() {
 
           {showPlanningForm && (
             <PlanningFormModal
-              event={editEvent}
+              event={planning.find(ev => ev.id === editEventId)}
               drivers={drivers}
               vehicles={vehicleOptions}
               existingPlanning={planning}
-              onClose={() => { setShowPlanningForm(false); setEditEvent(undefined); }}
+              onClose={() => { setShowPlanningForm(false); setEditEventId(null); }}
               onSave={(data) => {
-                const eventId = editEvent?.id || 'pl' + Date.now();
-                if (editEvent) updatePlanningEvent(eventId, data);
+                const eventId = editEventId || 'pl' + Date.now();
+                if (editEventId) updatePlanningEvent(eventId, data);
                 else addPlanningEvent({ ...data, id: eventId });
 
                 if (data.type === 'Mission') {
@@ -625,7 +642,7 @@ export default function DriverManagement() {
                   setTab('missions');
                 }
                 setShowPlanningForm(false);
-                setEditEvent(undefined);
+                setEditEventId(null);
               }}
             />
           )}

@@ -46,7 +46,7 @@ function loadFilters(): { dept: string; from: string; to: string } {
 }
 
 export default function Dashboard() {
-  const { vehicles, expenseRecords, maintenanceRecords, immobilisations, sinistres } = useVehicles();
+  const { vehicles, expenseRecords, immobilisations, sinistres } = useVehicles();
 
   const initialFilters = useMemo(loadFilters, []);
   const [filterDept, setFilterDept] = useState(initialFilters.dept);
@@ -107,9 +107,10 @@ export default function Dashboard() {
   const totalAcq = fv.reduce((s, v) => s + v.cout_achat + (v.frais_livraison || 0) + (v.frais_douane || 0) + (v.frais_installation || 0), 0);
   const totalIns = fv.reduce((s, v) => s + v.cout_assurance_annuel, 0);
   const totalExp = fe.reduce((s, e) => s + e.montant, 0);
-  const vIds = new Set(fv.map(v => v.id));
-  const totalMaint = maintenanceRecords.filter(m => vIds.has(m.vehicleId)).reduce((s, m) => s + m.cout, 0);
-  const totalOp = totalIns + totalMaint + totalExp;
+  // NB: les coûts de maintenance ne sont plus ajoutés séparément ici — depuis la fusion
+  // Historique Maintenance ↔ Dépenses, chaque intervention avec un coût existe déjà comme
+  // dépense (catégorie "Entretien") et est donc déjà comptée dans totalExp.
+  const totalOp = totalIns + totalExp;
   const totalIndirect = fv.reduce((s, v) => s + (v.couts_indirects || 0), 0);
   const totalResidual = fv.reduce((s, v) => s + (v.valeur_residuelle || 0), 0);
   const tcoGlobal = totalAcq + totalOp + totalIndirect - totalResidual;
