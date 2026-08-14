@@ -53,14 +53,16 @@ export async function registerWithEmail(email: string, password: string, display
   const profile = await readOrCreateProfile(cred.user);
   const finalProfile = { ...profile, displayName: displayName || profile.displayName };
   await setDoc(doc(db, USERS_COLLECTION, cred.user.uid), { displayName: finalProfile.displayName }, { merge: true });
-  signalPresenceConnected(finalProfile.displayName, finalProfile.email, finalProfile.role);
+  // uid réel en premier argument (voir risePresenceSync.ts) : évite les doublons
+  // de lignes dans RISE Presence pour un même compte.
+  signalPresenceConnected(cred.user.uid, finalProfile.displayName, finalProfile.email, finalProfile.role);
   return finalProfile;
 }
 
 export async function loginWithEmail(email: string, password: string) {
   const cred = await signInWithEmailAndPassword(auth, email, password);
   const profile = await readOrCreateProfile(cred.user);
-  signalPresenceConnected(profile.displayName, profile.email, profile.role);
+  signalPresenceConnected(cred.user.uid, profile.displayName, profile.email, profile.role);
   return profile;
 }
 
@@ -83,11 +85,17 @@ export function observeAuth(callback: (profile: UserProfile | null) => void) {
     // session restaurée automatiquement au rechargement de page (pas seulement lors d'un
     // clic explicite sur "Se connecter") : sinon RISE Presence peut rester bloqué sur
     // "Déconnecté" alors que l'utilisateur est bel et bien actif dans FleetGest.
-    signalPresenceConnected(profile.displayName, profile.email, profile.role);
+    signalPresenceConnected(user.uid, profile.displayName, profile.email, profile.role);
   });
 }
 
 export async function logout(profile: UserProfile | null) {
-  if (profile) signalPresenceDisconnected(profile.displayName);
+  if (profile) {
+    try {
+      await signalPresenceDisconnected(profile.uid);
+    } catch (err) {
+      console.error("Présence non mise à jour à la déconnexion :", err);
+    }
+  }
   return signOut(auth);
 }

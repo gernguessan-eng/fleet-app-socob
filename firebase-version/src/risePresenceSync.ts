@@ -7,26 +7,37 @@ const USERS_COLLECTION = "users";
 const STATUT_CONNECTE = "Connecté";
 const STATUT_DECONNECTE = "Déconnecté";
 
-// Construit un identifiant stable et valide pour Firestore à partir de l'identifiant
-// FleetGest de la personne, pour qu'un même utilisateur soit toujours reconnu comme
-// la même personne par RISE Presence, même si la connexion technique est anonyme.
-function stableUid(identifier: string): string {
-  const sanitized = identifier
-    .trim()
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // retire les accents
-    .replace(/[^a-z0-9_-]/g, "-")
-    .slice(0, 120);
-  return `fleetgest-${sanitized || "utilisateur"}`;
+// Identifie automatiquement quelle version de FleetGest signale la présence,
+// à partir du nom de domaine du déploiement.
+function currentAppName(): string {
+  if (typeof window === "undefined" || !window.location?.hostname) return "FleetGest";
+  const host = window.location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return "FleetGest (local)";
+  const firstSegment = host.split(".")[0];
+  return firstSegment || "FleetGest";
 }
 
-// À appeler lors d'une connexion réussie (création de compte ou connexion) dans FleetGest.
-// N'interrompt jamais le flux de connexion de FleetGest en cas d'échec (erreur journalisée
-// uniquement) : le signalement de présence est une fonctionnalité annexe, pas critique.
-export async function signalPresenceConnected(identifier: string, email: string, fonction: string) {
+// ⚠️ CHANGEMENT IMPORTANT : le document presence/users est maintenant identifié
+// par l'UID RÉEL du compte Firebase Authentication (uid), pas par un texte dérivé
+// du nom affiché ou de l'e-mail. Avant ce changement, si un même utilisateur était
+// signalé une fois avec son nom et une fois avec son e-mail comme "identifiant",
+// deux documents différents étaient créés pour la même personne — c'est exactement
+// le bug des lignes en double observé dans RISE Presence.
+//
+// uid doit être le vrai uid Firebase (ex: auth.currentUser.uid dans FleetGest),
+// pas une chaîne de caractères construite à la main.
+export async function signalPresenceConnected(
+  uid: string,
+  displayName: string,
+  email: string,
+  fonction: string
+) {
+  if (!uid) {
+    console.error("[RISE Presence] signalPresenceConnected appelé sans uid — signalement ignoré.");
+    return;
+  }
   try {
     await riseAuthReady;
-    const uid = stableUid(identifier);
     const userRef = doc(riseDb, USERS_COLLECTION, uid);
     const existingUser = await getDoc(userRef);
     await Promise.all([
@@ -34,10 +45,10 @@ export async function signalPresenceConnected(identifier: string, email: string,
         doc(riseDb, PRESENCE_COLLECTION, uid),
         {
           uid,
-          displayName: identifier,
+          displayName,
           email: email || "",
           role: fonction || "",
-          application: "FleetGest",
+          application: currentAppName(),
           statut: STATUT_CONNECTE,
           connexion: serverTimestamp(),
           deconnexion: null,
@@ -48,7 +59,7 @@ export async function signalPresenceConnected(identifier: string, email: string,
         userRef,
         {
           uid,
-          displayName: identifier,
+          displayName,
           email: email || "",
           role: fonction || "",
           updatedAt: serverTimestamp(),
@@ -62,11 +73,11 @@ export async function signalPresenceConnected(identifier: string, email: string,
   }
 }
 
-// À appeler lors de la déconnexion dans FleetGest.
-export async function signalPresenceDisconnected(identifier: string) {
+// À appeler lors de la déconnexion dans FleetGest. Même uid réel qu'à la connexion.
+export async function signalPresenceDisconnected(uid: string) {
+  if (!uid) return;
   try {
     await riseAuthReady;
-    const uid = stableUid(identifier);
     await setDoc(
       doc(riseDb, PRESENCE_COLLECTION, uid),
       { statut: STATUT_DECONNECTE, deconnexion: serverTimestamp() },
