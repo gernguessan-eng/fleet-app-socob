@@ -4,10 +4,11 @@ import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { Driver, Mission, PlanningEvent } from '../types';
+import { getCell, readTabularFile, exportRowsToExcel } from '../utils/excelIO';
 import {
   Users, ClipboardList, CalendarDays, Plus, Pencil, Search,
   Phone, Mail, Car, MapPin, Printer, ChevronRight,
-  CheckCircle2, AlertTriangle, X, Upload,
+  CheckCircle2, AlertTriangle, X, Upload, Download,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
 
@@ -292,7 +293,60 @@ function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave,
 // COMPOSANT PRINCIPAL
 // ═══════════════════════════════════════════════════════════
 export default function DriverManagement() {
-  const { drivers, missions, planning, addDriver, updateDriver, deleteDriver, addMission, updateMission, deleteMission, addPlanningEvent, updatePlanningEvent, deletePlanningEvent } = useDrivers();
+  const { drivers, missions, planning, addDriver, importDrivers, updateDriver, deleteDriver, addMission, updateMission, deleteMission, addPlanningEvent, updatePlanningEvent, deletePlanningEvent } = useDrivers();
+
+  const [importMessage, setImportMessage] = useState('');
+  const [importPreview, setImportPreview] = useState<Driver[]>([]);
+
+  const buildDriverFromRow = (row: Record<string, unknown>, index: number): Driver | null => {
+    const nom = getCell(row, ['nom', 'name']);
+    if (!nom) return null;
+    return {
+      id: 'dr-import-' + Date.now() + '-' + index,
+      nom,
+      prenom: getCell(row, ['prenom', 'prénom']),
+      telephone: getCell(row, ['telephone', 'téléphone', 'tel', 'phone']),
+      email: getCell(row, ['email', 'e-mail', 'courriel']),
+      numero_permis: getCell(row, ['numero_permis', 'n_permis', 'permis']),
+      categorie_permis: getCell(row, ['categorie_permis', 'catégorie_permis', 'categorie']),
+      date_expiration_permis: getCell(row, ['date_expiration_permis', 'expiration_permis', 'expiration']),
+      date_embauche: getCell(row, ['date_embauche', 'embauche']) || new Date().toISOString().slice(0, 10),
+      vehicule_affecte_id: '',
+      statut: 'Disponible',
+      notes: getCell(row, ['notes', 'observation', 'observations']),
+    };
+  };
+
+  const processImportFile = async (file: File) => {
+    setImportMessage('Traitement du fichier en cours...');
+    setImportPreview([]);
+    try {
+      const rows = await readTabularFile(file);
+      const imported = rows.map((row, index) => buildDriverFromRow(row, index)).filter((d): d is Driver => Boolean(d));
+      setImportPreview(imported);
+      setImportMessage(imported.length > 0 ? `${imported.length} chauffeur(s) valide(s) détecté(s).` : 'Aucun chauffeur valide détecté (colonne « Nom » requise).');
+    } catch (error) {
+      setImportMessage('Erreur : ' + (error as Error).message);
+    }
+  };
+
+  const confirmImport = () => {
+    importDrivers([...drivers, ...importPreview]);
+    setImportMessage(`${importPreview.length} chauffeur(s) importé(s) avec succès.`);
+    setImportPreview([]);
+  };
+
+  const exportDrivers = () => {
+    const rows = drivers.map((d) => {
+      const v = vehicles.find((veh) => veh.id === d.vehicule_affecte_id);
+      return {
+        'Nom': d.nom, 'Prénom': d.prenom, 'Téléphone': d.telephone, 'Email': d.email,
+        'N° Permis': d.numero_permis, 'Catégorie Permis': d.categorie_permis, 'Expiration Permis': d.date_expiration_permis,
+        'Date embauche': d.date_embauche, 'Véhicule affecté': v?.numero_immatriculation || '', 'Statut': d.statut, 'Notes': d.notes,
+      };
+    });
+    exportRowsToExcel(rows, 'chauffeurs.xlsx', 'Chauffeurs');
+  };
   const { vehicles } = useVehicles();
   const [tab, setTab] = usePersistedState<'chauffeurs' | 'missions' | 'planning'>('fleetgest_filter_drivers_tab', 'chauffeurs');
   const [search, setSearch] = usePersistedState('fleetgest_filter_drivers_search', '');
@@ -354,10 +408,24 @@ export default function DriverManagement() {
           <p className="mt-1 text-sm text-slate-500">{driverStats.total} chauffeur(s) — {driverStats.disponibles} disponible(s) — {missions.filter(m => m.statut === 'Planifiée' || m.statut === 'En cours').length} mission(s) active(s)</p>
         </div>
         <div className="flex gap-2">
-          <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer"><Upload className="h-4 w-4" /><input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={() => {}} /></label>
+          <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer">
+            <Upload className="h-4 w-4" />
+            <input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={(event) => event.target.files?.[0] && processImportFile(event.target.files[0])} />
+          </label>
+          <button onClick={exportDrivers} className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50" title="Exporter">
+            <Download className="h-4 w-4" />
+          </button>
           <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"><Printer className="h-4 w-4" /> Imprimer</button>
         </div>
       </div>
+
+      {importMessage && <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 print:hidden">{importMessage}</p>}
+      {importPreview.length > 0 && (
+        <div className="rounded-lg bg-emerald-50 px-4 py-3 flex items-center justify-between print:hidden">
+          <span className="text-sm text-emerald-800">{importPreview.length} chauffeur(s) prêt(s)</span>
+          <button onClick={confirmImport} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Confirmer l'import</button>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">

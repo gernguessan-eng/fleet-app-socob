@@ -36,6 +36,7 @@ interface DriverContextType {
   missions: Mission[];
   planning: PlanningEvent[];
   addDriver: (d: Driver) => void;
+  importDrivers: (drivers: Driver[]) => void;
   updateDriver: (id: string, u: Partial<Driver>) => void;
   deleteDriver: (id: string) => void;
   addMission: (m: Mission) => void;
@@ -97,9 +98,15 @@ export function DriverProvider({ children }: { children: React.ReactNode }) {
   const [planning, setPlanning] = useFirestoreCollection<PlanningEvent>(SK_PLANNING, samplePlanning);
 
   const addDriver = useCallback((d: Driver) => setDrivers(p => [...p, d]), []);
+  const importDrivers = useCallback((newDrivers: Driver[]) => {
+    setDrivers((prev) => {
+      const existingKeys = new Set(prev.map((d) => d.numero_permis || `${d.nom}|${d.prenom}|${d.telephone}`));
+      const toAdd = newDrivers.filter((d) => !existingKeys.has(d.numero_permis || `${d.nom}|${d.prenom}|${d.telephone}`));
+      return [...prev, ...toAdd];
+    });
+  }, []);
   const updateDriver = useCallback((id: string, u: Partial<Driver>) => setDrivers(p => p.map(d => d.id === id ? { ...d, ...u } : d)), []);
   const deleteDriver = useCallback((id: string) => {
-    if (!confirm('Supprimer ce chauffeur et toutes ses missions/plannings associés ?')) return;
     setDrivers(p => p.filter(d => d.id !== id));
     setMissions(p => p.filter(m => m.driverId !== id));
     setPlanning(p => p.filter(e => e.driverId !== id));
@@ -135,7 +142,6 @@ export function DriverProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteMission = useCallback((id: string) => {
-    if (!confirm('Supprimer cette mission ?')) return;
     setMissions(prev => prev.filter(m => m.id !== id));
     const planningId = getLinkedPlanningIdFromMissionId(id);
     setPlanning(prev => prev.filter(e => e.id !== planningId));
@@ -178,7 +184,6 @@ export function DriverProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deletePlanningEvent = useCallback((id: string) => {
-    if (!confirm('Supprimer cet événement ?')) return;
     setPlanning(prev => prev.filter(e => e.id !== id));
     const missionId = getLinkedMissionIdFromPlanningId(id);
     setMissions(prev => prev.filter(m => m.id !== missionId));
@@ -190,6 +195,7 @@ export function DriverProvider({ children }: { children: React.ReactNode }) {
       missions,
       planning,
       addDriver,
+      importDrivers,
       updateDriver,
       deleteDriver,
       addMission,

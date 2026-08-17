@@ -8,13 +8,23 @@ const STATUT_CONNECTE = "Connecté";
 const STATUT_DECONNECTE = "Déconnecté";
 
 // Identifie automatiquement quelle version de FleetGest signale la présence,
-// à partir du nom de domaine du déploiement.
-function currentAppName(): string {
+// à partir du nom de domaine du déploiement. Exportée : réutilisée aussi pour l'affichage
+// (écran de connexion, menu latéral) afin que chaque client voie le nom de SON site,
+// plutôt qu'un « FleetGest » générique identique pour tout le monde.
+export function currentAppName(): string {
   if (typeof window === "undefined" || !window.location?.hostname) return "FleetGest";
   const host = window.location.hostname;
   if (host === "localhost" || host === "127.0.0.1") return "FleetGest (local)";
   const firstSegment = host.split(".")[0];
   return firstSegment || "FleetGest";
+}
+
+// Variante présentable pour l'interface (écran de connexion, menu latéral) : même nom que
+// currentAppName(), juste avec une majuscule initiale — currentAppName() elle-même reste
+// inchangée (minuscules) pour que RISE Presence retrouve toujours la même valeur exacte.
+export function displayAppName(): string {
+  const name = currentAppName();
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 // ⚠️ CHANGEMENT IMPORTANT : le document presence/users est maintenant identifié

@@ -2195,7 +2195,6 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deleteContact = useCallback((id: string) => {
-    if (!confirm('Supprimer ce contact du carnet d\'adresses ?')) return;
     setContacts((prev) => prev.filter((c) => c.id !== id));
   }, []);
 

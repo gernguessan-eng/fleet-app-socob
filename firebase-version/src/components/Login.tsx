@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { loginWithEmail, registerWithEmail, resetPassword, type UserProfile } from "../authService";
+import { displayAppName } from "../risePresenceSync";
 
 const inputCls =
   "mt-1 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500";
@@ -65,7 +66,7 @@ export default function Login({ onLogin }: { onLogin: (profile: UserProfile) => 
     <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-white p-8 shadow-2xl">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-black tracking-wide text-slate-900">FleetGest</h1>
+          <h1 className="text-2xl font-black tracking-wide text-slate-900">{displayAppName()}</h1>
           <p className="mt-1 text-sm text-slate-500">Gestion de parc automobile</p>
         </div>
 

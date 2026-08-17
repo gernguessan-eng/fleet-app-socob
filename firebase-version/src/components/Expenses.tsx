@@ -179,7 +179,7 @@ export default function Expenses() {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">{expense.fournisseur || '-'}</td>
                       <td className="px-4 py-3 text-sm text-slate-600">{expense.mode_paiement || '-'}</td>
-                      <td className={`px-4 py-3 text-right text-sm font-bold ${expense.montant < 0 ? 'text-emerald-600' : 'text-slate-800'}`}>{formatMoney(expense.montant)}</td>
+                      <td className={`px-4 py-3 text-right text-sm font-bold ${expense.montant < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatMoney(expense.montant)}</td>
                       <td className="px-4 py-3 text-center print:hidden"><div className="flex items-center justify-center gap-1">
                         {fromMaintenance ? (
                           vehicle ? (

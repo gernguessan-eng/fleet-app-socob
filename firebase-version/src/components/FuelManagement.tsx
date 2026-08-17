@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { getFuelPrice, fuelPricesFromSettings } from '../utils/fuelPrices';
+import { getCell, parseAmount, readTabularFile } from '../utils/excelIO';
+import type { ExpenseRecord } from '../types';
 import { 
   Fuel, DollarSign, TrendingUp, Download, Printer, PieChart as PieChartIcon, 
   BarChart as BarChartIcon, CheckCircle2, Calendar, Tag, Layers, Upload,
@@ -20,7 +22,7 @@ function formatFCFA(n: number) {
 }
 
 export default function FuelManagement() {
-  const { vehicles, expenseRecords, appSettings } = useVehicles();
+  const { vehicles, expenseRecords, appSettings, importExpenseRecords } = useVehicles();
   const fuelPrices = fuelPricesFromSettings(appSettings);
   const [periodFrom, setPeriodFrom] = usePersistedState('fleetgest_filter_fuel_from', '');
   const [periodTo, setPeriodTo] = usePersistedState('fleetgest_filter_fuel_to', '');
@@ -148,6 +150,49 @@ export default function FuelManagement() {
     };
   }, [fuelExpenses, vehicles, fuelPrices]);
 
+  const [importMessage, setImportMessage] = useState('');
+  const [importPreview, setImportPreview] = useState<ExpenseRecord[]>([]);
+
+  const buildFuelExpenseFromRow = (row: Record<string, unknown>, index: number): ExpenseRecord | null => {
+    const plate = getCell(row, ['immatriculation', 'numero_immatriculation', 'plaque', 'vehicule', 'véhicule']);
+    const vehicle = vehicles.find((v) => v.numero_immatriculation.toLowerCase() === plate.toLowerCase());
+    if (!vehicle) return null;
+    const montant = parseAmount(getCell(row, ['montant', 'cout', 'coût', 'prix', 'amount']));
+    if (!montant) return null;
+    return {
+      id: 'e-fuel-import-' + Date.now() + '-' + index,
+      vehicleId: vehicle.id,
+      date: getCell(row, ['date']) || new Date().toISOString().slice(0, 10),
+      categorie: 'Carburant',
+      libelle: getCell(row, ['libelle', 'libellé', 'description']) || 'Plein carburant',
+      montant,
+      fournisseur: getCell(row, ['fournisseur', 'station', 'prestataire']),
+      mode_paiement: getCell(row, ['mode_paiement', 'paiement', 'mode']) || 'Non précisé',
+      numero_piece: getCell(row, ['numero_piece', 'n_piece', 'facture', 'recu', 'reçu']),
+      justificatif_nom: '',
+      notes: getCell(row, ['notes', 'observation', 'observations']),
+    };
+  };
+
+  const processImportFile = async (file: File) => {
+    setImportMessage('Traitement du fichier en cours...');
+    setImportPreview([]);
+    try {
+      const rows = await readTabularFile(file);
+      const imported = rows.map((row, index) => buildFuelExpenseFromRow(row, index)).filter((e): e is ExpenseRecord => Boolean(e));
+      setImportPreview(imported);
+      setImportMessage(imported.length > 0 ? `${imported.length} plein(s) valide(s) détecté(s).` : 'Aucune ligne valide détectée (colonnes « Immatriculation » et « Montant » requises).');
+    } catch (error) {
+      setImportMessage('Erreur : ' + (error as Error).message);
+    }
+  };
+
+  const confirmImport = () => {
+    importExpenseRecords([...expenseRecords, ...importPreview]);
+    setImportMessage(`${importPreview.length} plein(s) importé(s) avec succès.`);
+    setImportPreview([]);
+  };
+
   const exportToExcel = () => {
     const data = fuelExpenses.map(e => {
       const v = vehicles.find(veh => veh.id === e.vehicleId);
@@ -180,11 +225,19 @@ export default function FuelManagement() {
           <p className="mt-1 text-sm text-slate-500">Analyses approfondies des consommations et coûts de carburant</p>
         </div>
         <div className="flex gap-2">
-          <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer"><Upload className="h-4 w-4" /><input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={() => {}} /></label>
+          <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer"><Upload className="h-4 w-4" /><input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={(event) => event.target.files?.[0] && processImportFile(event.target.files[0])} /></label>
           <button onClick={exportToExcel} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"><Download className="h-4 w-4" /> Exporter</button>
           <button onClick={handlePrint} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Printer className="h-4 w-4" /> Imprimer</button>
         </div>
       </div>
+
+      {importMessage && <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 print:hidden">{importMessage}</p>}
+      {importPreview.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-4 py-3 print:hidden">
+          <span className="text-sm text-emerald-800">{importPreview.length} plein(s) prêt(s)</span>
+          <button onClick={confirmImport} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Confirmer l'import</button>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

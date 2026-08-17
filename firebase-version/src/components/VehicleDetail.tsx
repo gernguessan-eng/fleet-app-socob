@@ -318,7 +318,7 @@ export default function VehicleDetail() {
                             {expense.fournisseur && <p className="mt-1 text-xs text-slate-400">{expense.fournisseur}</p>}
                           </div>
                           <div className="flex items-center gap-2">
-                            <p className={`whitespace-nowrap text-sm font-bold ${expense.montant < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>{formatMoney(expense.montant)}</p>
+                            <p className={`whitespace-nowrap text-sm font-bold ${expense.montant < 0 ? 'text-red-600' : 'text-slate-700'}`}>{formatMoney(expense.montant)}</p>
                             {!fromMaintenance && (
                               <DeleteGuardButton
                                 module="depenses"

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
 import { useDeletionRequests } from '../store/DeletionRequestsStore';
+import { displayAppName } from '../risePresenceSync';
 
 export type NavItemDef = {
   path: string;
@@ -124,7 +125,7 @@ export default function Sidebar() {
           <Car className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-sm font-bold leading-tight">Parc Auto</h1>
+          <h1 className="text-sm font-bold leading-tight">{displayAppName()}</h1>
           <p className="text-[10px] text-slate-400">Gestion de flotte</p>
         </div>
       </div>

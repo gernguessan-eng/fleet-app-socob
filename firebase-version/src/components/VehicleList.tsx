@@ -2,9 +2,10 @@ import { useState, useMemo } from 'react';
 import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 import type { Vehicle } from '../types';
+import { getCell, parseAmount, readTabularFile, exportRowsToExcel } from '../utils/excelIO';
 import {
   Search, Plus, Pencil, Trash2, ChevronRight, ChevronDown,
-  ChevronLeft as ChevronLeftIcon, Printer, FolderTree, CheckSquare, Square, Upload,
+  ChevronLeft as ChevronLeftIcon, Printer, FolderTree, CheckSquare, Square, Upload, Download,
 } from 'lucide-react';
 import VehicleForm from './VehicleForm';
 import VehicleDetailPanel from './VehicleDetailPanel';
@@ -20,9 +21,93 @@ function fmtMoney(v: number) {
 }
 
 export default function VehicleList() {
-  const { vehicles, expenseRecords, deleteVehicle, deleteMultipleVehicles } = useVehicles();
+  const { vehicles, expenseRecords, deleteVehicle, deleteMultipleVehicles, importVehicles } = useVehicles();
   const { profile } = useAuth();
   const { requestDeletion } = useDeletionRequests();
+  const [importMessage, setImportMessage] = useState('');
+  const [importPreview, setImportPreview] = useState<Vehicle[]>([]);
+
+  const exportExcel = () => {
+    const rows = filtered.map((v) => ({
+      'Immatriculation': v.numero_immatriculation, 'N° carte grise': v.numero_carte_grise, 'Marque': v.marque,
+      'Genre': v.genre, 'Type commercial': v.type_commercial, 'Couleur': v.couleur, 'Énergie': v.energie,
+      'Date mise en circulation': v.date_mise_circulation, 'Statut': v.statut, 'Kilométrage': v.kilometrage,
+      'Affectation': v.affectation, 'Zone': v.zone_affectation || '', 'Zone de travail': v.zone_travail || '',
+      'Conducteur': v.conducteur, 'Date achat': v.date_achat, 'Coût achat (FCFA)': v.cout_achat,
+      'Date assurance': v.date_assurance, 'Coût assurance annuel (FCFA)': v.cout_assurance_annuel,
+      'Date vignette': v.date_vignette, 'Consommation (L/100km)': v.consommation_100km || '', 'Observations': v.observations,
+    }));
+    exportRowsToExcel(rows, 'vehicules.xlsx', 'Véhicules');
+  };
+
+  const buildVehicleFromRow = (row: Record<string, unknown>, index: number): Vehicle | null => {
+    const immat = getCell(row, ['immatriculation', 'numero_immatriculation', 'plaque']);
+    if (!immat) return null;
+    return {
+      id: 'v-import-' + Date.now() + '-' + index,
+      numero_immatriculation: immat,
+      numero_carte_grise: getCell(row, ['n° carte grise', 'numero_carte_grise', 'carte grise']),
+      code_parc_entreprise: getCell(row, ['code_parc_entreprise', 'code parc']),
+      nom_proprietaire: getCell(row, ['nom_proprietaire', 'propriétaire']),
+      rdc: getCell(row, ['rdc']),
+      marque: getCell(row, ['marque']),
+      genre: getCell(row, ['genre']),
+      type_commercial: getCell(row, ['type commercial', 'type_commercial', 'modele', 'modèle']),
+      couleur: getCell(row, ['couleur']),
+      carrosserie: getCell(row, ['carrosserie']),
+      date_mise_circulation: getCell(row, ['date mise en circulation', 'date_mise_circulation']),
+      date_edition: getCell(row, ['date_edition']),
+      usage_vehicule: getCell(row, ['usage_vehicule', 'usage']),
+      energie: getCell(row, ['énergie', 'energie']) || 'Essence',
+      places_assises: Math.round(parseAmount(getCell(row, ['places_assises', 'places']))) || 0,
+      ptac_kg: parseAmount(getCell(row, ['ptac_kg', 'ptac'])),
+      nombre_essieux: Math.round(parseAmount(getCell(row, ['nombre_essieux', 'essieux']))) || 0,
+      cylindree_cc: parseAmount(getCell(row, ['cylindree_cc', 'cylindrée'])),
+      puissance_fiscale_cv: parseAmount(getCell(row, ['puissance_fiscale_cv', 'puissance'])),
+      pv_kg: parseAmount(getCell(row, ['pv_kg'])),
+      cu_kg: parseAmount(getCell(row, ['cu_kg'])),
+      vin_chassis: getCell(row, ['vin_chassis', 'chassis', 'châssis']),
+      numero_moteur: getCell(row, ['numero_moteur', 'n° moteur']),
+      type_technique: getCell(row, ['type_technique']),
+      numero_immatriculation_precedent: getCell(row, ['numero_immatriculation_precedent']),
+      societe_credit: getCell(row, ['societe_credit', 'société de crédit']),
+      statut: (['Actif', 'En maintenance', 'Hors service', 'Réformé'].includes(getCell(row, ['statut'])) ? getCell(row, ['statut']) : 'Actif') as Vehicle['statut'],
+      kilometrage: Math.round(parseAmount(getCell(row, ['kilometrage', 'kilométrage']))),
+      date_achat: getCell(row, ['date achat', 'date_achat']),
+      cout_achat: parseAmount(getCell(row, ['cout achat (fcfa)', 'cout_achat', 'coût achat'])),
+      date_assurance: getCell(row, ['date assurance', 'date_assurance']),
+      date_vignette: getCell(row, ['date vignette', 'date_vignette']),
+      validite_carte_transport: getCell(row, ['validite_carte_transport']),
+      validite_patente: getCell(row, ['validite_patente']),
+      validite_carte_stationnement: getCell(row, ['validite_carte_stationnement']),
+      cout_assurance_annuel: parseAmount(getCell(row, ['cout assurance annuel (fcfa)', 'cout_assurance_annuel'])),
+      affectation: getCell(row, ['affectation']),
+      zone_affectation: (getCell(row, ['zone', 'zone_affectation']) || undefined) as Vehicle['zone_affectation'],
+      zone_travail: getCell(row, ['zone de travail', 'zone_travail']),
+      conducteur: getCell(row, ['conducteur']),
+      observations: getCell(row, ['observations']),
+      consommation_100km: parseAmount(getCell(row, ['consommation (l/100km)', 'consommation_100km'])) || undefined,
+    };
+  };
+
+  const processImportFile = async (file: File) => {
+    setImportMessage('Traitement du fichier en cours...');
+    setImportPreview([]);
+    try {
+      const rows = await readTabularFile(file);
+      const imported = rows.map((row, index) => buildVehicleFromRow(row, index)).filter((v): v is Vehicle => Boolean(v));
+      setImportPreview(imported);
+      setImportMessage(imported.length > 0 ? `${imported.length} véhicule(s) valide(s) détecté(s).` : 'Aucun véhicule valide détecté (colonne « Immatriculation » requise).');
+    } catch (error) {
+      setImportMessage('Erreur : ' + (error as Error).message);
+    }
+  };
+
+  const confirmImport = () => {
+    importVehicles([...vehicles, ...importPreview]);
+    setImportMessage(`${importPreview.length} véhicule(s) importé(s) avec succès.`);
+    setImportPreview([]);
+  };
   const [search, setSearch]           = usePersistedState('fleetgest_filter_vehicles_search', '');
   const [filterStatus, setFilterStatus] = usePersistedState('fleetgest_filter_vehicles_status', '');
   const [showForm, setShowForm]       = usePersistedState('fleetgest_draft_vehicle_form_open', false);
@@ -166,8 +251,15 @@ export default function VehicleList() {
           </button>
           <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer">
             <Upload className="h-4 w-4" />
-            <input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={() => {}} />
+            <input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={(event) => event.target.files?.[0] && processImportFile(event.target.files[0])} />
           </label>
+          <button
+            onClick={exportExcel}
+            className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50"
+            title="Exporter"
+          >
+            <Download className="h-4 w-4" />
+          </button>
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
@@ -176,6 +268,14 @@ export default function VehicleList() {
           </button>
         </div>
       </div>
+
+      {importMessage && <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600 print:hidden">{importMessage}</p>}
+      {importPreview.length > 0 && (
+        <div className="rounded-lg bg-emerald-50 px-4 py-3 flex items-center justify-between print:hidden">
+          <span className="text-sm text-emerald-800">{importPreview.length} véhicule(s) prêt(s)</span>
+          <button onClick={confirmImport} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Confirmer l'import</button>
+        </div>
+      )}
 
       {/* ── Filters ── */}
       <div className="flex flex-col gap-3 sm:flex-row">
