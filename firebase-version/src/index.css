@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Palette SOCOB — remplace la teinte "emerald" par défaut de FleetGest.
+   Toutes les classes bg-emerald-*, text-emerald-*, border-emerald-* etc.
+   utilisées dans les composants héritent automatiquement de ces teintes :
+   aucune modification des composants n'est nécessaire. */
+@theme {
+  --color-emerald-50: #F6FAF5;
+  --color-emerald-100: #E9F6E4;
+  --color-emerald-200: #CEF0C1;
+  --color-emerald-300: #A8EC8D;
+  --color-emerald-400: #6BE93A;
+  --color-emerald-500: #3FB80F;
+  --color-emerald-600: #2F9009;
+  --color-emerald-700: #257406;
+  --color-emerald-800: #1F6105;
+  --color-emerald-900: #194D05;
+  --color-emerald-950: #0E2A03;
+}
+
 @media print {
   aside, .print\:hidden { 
     display: none !important; 

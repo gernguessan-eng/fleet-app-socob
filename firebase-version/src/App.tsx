@@ -36,7 +36,16 @@ function AppContent({ profile, onLogout }: { profile: UserProfile; onLogout: () 
       </div>
       <div className="flex flex-1">
         <Sidebar />
-        <main className="ml-64 flex-1 p-6 print:ml-0 print:p-0">
+        <main className="relative ml-64 flex-1 p-6 print:ml-0 print:p-0">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-y-0 left-64 right-0 z-0 bg-center bg-no-repeat opacity-[0.05] print:hidden"
+            style={{
+              backgroundImage: "url('/socob-logo.png')",
+              backgroundSize: 'min(55vw, 620px)',
+            }}
+          />
+          <div className="relative z-10">
           <Routes>
             <Route path="/"             element={<Dashboard />} />
             <Route path="/vehicules"    element={<VehicleList />} />
@@ -58,6 +67,7 @@ function AppContent({ profile, onLogout }: { profile: UserProfile; onLogout: () 
             <Route path="/impression/:id" element={<Navigate to="/vehicules" replace />} />
             <Route path="/apercu"       element={<Navigate to="/vehicules" replace />} />
           </Routes>
+          </div>
         </main>
       </div>
     </div>

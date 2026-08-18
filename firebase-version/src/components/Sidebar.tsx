@@ -119,10 +119,20 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col bg-gradient-to-b from-slate-900 to-slate-800 text-white shadow-xl">
-      <div className="flex items-center gap-3 border-b border-slate-700 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500">
-          <Car className="h-5 w-5 text-white" />
+    <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-emerald-950 text-white shadow-xl">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 bg-center bg-no-repeat opacity-[0.06]"
+        style={{ backgroundImage: "url('/socob-logo.png')", backgroundSize: '340px' }}
+      />
+      <div className="relative z-10 flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b-2 border-[#E8B923]/50 px-6 py-5">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white p-0.5 shadow-md">
+          <img
+            src="/socob-logo.png"
+            alt="SOCOB"
+            className="h-full w-full rounded-full object-contain"
+          />
         </div>
         <div>
           <h1 className="text-sm font-bold leading-tight">{displayAppName()}</h1>
@@ -167,7 +177,7 @@ export default function Sidebar() {
               {editMode && <div className="flex-shrink-0 pl-1 text-slate-500"><GripVertical className="h-4 w-4" /></div>}
               <NavLink
                 to={item.path}
-                className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}
+                className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${isActive ? 'border-l-4 border-[#E8B923] bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' : 'border-l-4 border-transparent text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}
                 onClick={(e) => { if (editMode) e.preventDefault(); }}
               >
                 <Icon className="h-5 w-5 flex-shrink-0" />
@@ -209,6 +219,7 @@ export default function Sidebar() {
           <p className="mt-1.5 px-1 text-[9px] leading-relaxed text-slate-500">Accès restreint — visible uniquement par vous.</p>
         </div>
       )}
+      </div>
     </aside>
   );
 }
