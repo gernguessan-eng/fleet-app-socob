@@ -23,6 +23,46 @@ function daysUntil(d: string) {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86_400_000);
 }
 
+// Ces trois petits composants de présentation sont déclarés au niveau du module
+// (et non à l'intérieur de VehicleDetailPanel) pour garder une identité stable
+// entre les rendus. Sinon, à chaque frappe dans un champ (ex: le formulaire
+// "Historique Maintenance"), React les considère comme de "nouveaux" composants
+// et démonte/remonte leurs enfants — ce qui fait perdre le focus des <input>
+// après chaque caractère saisi.
+const Card = ({ title, children }: { title: React.ReactNode; children: React.ReactNode }) => (
+  <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">{title}</h3>
+    {children}
+  </div>
+);
+
+const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
+  <div className="flex items-start gap-3 border-b border-slate-50 py-2 last:border-0">
+    <div className="mt-0.5 flex-shrink-0 text-slate-400">{icon}</div>
+    <div className="min-w-0 flex-1">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-sm font-medium text-slate-800">{value}</p>
+    </div>
+  </div>
+);
+
+const EcheanceRow = ({ label, date, days }: { label: string; date: string; days: number | null }) => (
+  <div className="flex items-start gap-3 border-b border-slate-50 py-2">
+    <Shield className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+    <div>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-sm font-medium text-slate-800">{formatDate(date)}</p>
+      {days !== null && (
+        <p className={`mt-0.5 text-xs font-semibold ${
+          days < 0 ? 'text-red-600' : days < 30 ? 'text-red-500' : days < 60 ? 'text-amber-500' : 'text-green-500'
+        }`}>
+          {days < 0 ? `Expirée depuis ${Math.abs(days)} j` : days === 0 ? "Expire aujourd'hui" : `Dans ${days} jours`}
+        </p>
+      )}
+    </div>
+  </div>
+);
+
 export default function VehicleDetailPanel({ vehicle, printMode = false }: Props) {
   const {
     maintenanceRecords, addMaintenanceRecord, deleteMaintenanceRecord,
@@ -127,40 +167,6 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
     'Hors service':  'bg-red-100 text-red-700 border-red-200',
     Réformé:         'bg-slate-100 text-slate-600 border-slate-200',
   };
-
-  const Card = ({ title, children }: { title: React.ReactNode; children: React.ReactNode }) => (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">{title}</h3>
-      {children}
-    </div>
-  );
-
-  const Row = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
-    <div className="flex items-start gap-3 border-b border-slate-50 py-2 last:border-0">
-      <div className="mt-0.5 flex-shrink-0 text-slate-400">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-sm font-medium text-slate-800">{value}</p>
-      </div>
-    </div>
-  );
-
-  const EcheanceRow = ({ label, date, days }: { label: string; date: string; days: number | null }) => (
-    <div className="flex items-start gap-3 border-b border-slate-50 py-2">
-      <Shield className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-      <div>
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-sm font-medium text-slate-800">{formatDate(date)}</p>
-        {days !== null && (
-          <p className={`mt-0.5 text-xs font-semibold ${
-            days < 0 ? 'text-red-600' : days < 30 ? 'text-red-500' : days < 60 ? 'text-amber-500' : 'text-green-500'
-          }`}>
-            {days < 0 ? `Expirée depuis ${Math.abs(days)} j` : days === 0 ? "Expire aujourd'hui" : `Dans ${days} jours`}
-          </p>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <div className="p-6">
