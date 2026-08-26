@@ -9,27 +9,11 @@ const SK_PLANNING = 'parc_auto_planning';
 // Note : la lecture directe de localStorage n'est plus utilisée pour les collections
 // (elles sont désormais synchronisées avec Firestore via useFirestoreCollection).
 
-const sampleDrivers: Driver[] = [
-  { id: 'd1', nom: 'Kone', prenom: 'Amadou', telephone: '+225 07 12 34 56 78', email: 'a.kone@rehuel.ci', numero_permis: 'CI-2020-45678', categorie_permis: 'B', date_expiration_permis: '2027-05-15', date_embauche: '2021-03-01', vehicule_affecte_id: 'v1', statut: 'En mission', photo_url: '', notes: '' },
-  { id: 'd2', nom: 'Kouamé', prenom: 'Jean', telephone: '+225 07 23 45 67 89', email: 'j.kouame@rehuel.ci', numero_permis: 'CI-2019-12345', categorie_permis: 'B-C', date_expiration_permis: '2026-11-30', date_embauche: '2020-06-15', vehicule_affecte_id: 'v2', statut: 'Disponible', photo_url: '', notes: '' },
-  { id: 'd3', nom: 'Diallo', prenom: 'Fatou', telephone: '+225 07 34 56 78 90', email: 'f.diallo@rehuel.ci', numero_permis: 'CI-2021-78901', categorie_permis: 'B', date_expiration_permis: '2028-02-28', date_embauche: '2022-01-10', vehicule_affecte_id: 'v3', statut: 'Disponible', photo_url: '', notes: '' },
-  { id: 'd4', nom: 'Bamba', prenom: 'Marie', telephone: '+225 07 56 78 90 12', email: 'm.bamba@rehuel.ci', numero_permis: 'CI-2022-34567', categorie_permis: 'B', date_expiration_permis: '2029-08-10', date_embauche: '2023-04-01', vehicule_affecte_id: 'v5', statut: 'En congé', photo_url: '', notes: 'Congé maternité' },
-  { id: 'd5', nom: 'Traoré', prenom: 'Ibrahim', telephone: '+225 07 67 89 01 23', email: 'i.traore@rehuel.ci', numero_permis: 'CI-2018-56789', categorie_permis: 'B-C-D', date_expiration_permis: '2025-12-31', date_embauche: '2019-09-01', vehicule_affecte_id: 'v6', statut: 'Disponible', photo_url: '', notes: '' },
-];
+const sampleDrivers: Driver[] = [];
 
-const sampleMissions: Mission[] = [
-  { id: 'mi1', driverId: 'd1', vehicleId: 'v1', titre: 'Livraison Yamoussoukro', description: 'Livraison documents Direction', lieu_depart: 'Abidjan, Plateau', lieu_arrivee: 'Yamoussoukro', date_debut: '2025-07-20', date_fin: '2025-07-20', heure_depart: '06:00', heure_retour: '18:00', km_depart: 44800, km_retour: 45200, statut: 'Terminée', cout_mission: 35000, observations: '' },
-  { id: 'mi2', driverId: 'd2', vehicleId: 'v2', titre: 'Déplacement commercial Bouaké', description: 'Visite clients région centre', lieu_depart: 'Abidjan, Cocody', lieu_arrivee: 'Bouaké', date_debut: '2025-07-22', date_fin: '2025-07-23', heure_depart: '07:00', heure_retour: '19:00', km_depart: 89000, km_retour: 89600, statut: 'Planifiée', cout_mission: 55000, observations: 'Nuitée prévue' },
-  { id: 'mi3', driverId: 'd5', vehicleId: 'v6', titre: 'Transfert personnel San Pedro', description: 'Convoyage équipe projet', lieu_depart: 'Abidjan, Marcory', lieu_arrivee: 'San Pedro', date_debut: '2025-07-25', date_fin: '2025-07-26', heure_depart: '05:30', heure_retour: '20:00', km_depart: 72000, km_retour: 72900, statut: 'Planifiée', cout_mission: 78000, observations: '' },
-];
+const sampleMissions: Mission[] = [];
 
-const samplePlanning: PlanningEvent[] = [
-  { id: 'pl1', driverId: 'd1', vehicleId: 'v1', titre: 'Mission Yamoussoukro', type: 'Mission', date_debut: '2025-07-20', date_fin: '2025-07-20', couleur: '#10b981', notes: '' },
-  { id: 'pl2', driverId: 'd2', vehicleId: 'v2', titre: 'Mission Bouaké', type: 'Mission', date_debut: '2025-07-22', date_fin: '2025-07-23', couleur: '#6366f1', notes: '' },
-  { id: 'pl3', driverId: 'd4', vehicleId: '', titre: 'Congé maternité', type: 'Congé', date_debut: '2025-07-01', date_fin: '2025-09-30', couleur: '#f59e0b', notes: '' },
-  { id: 'pl4', driverId: 'd5', vehicleId: 'v6', titre: 'Mission San Pedro', type: 'Mission', date_debut: '2025-07-25', date_fin: '2025-07-26', couleur: '#8b5cf6', notes: '' },
-  { id: 'pl5', driverId: 'd3', vehicleId: '', titre: 'Formation sécurité routière', type: 'Formation', date_debut: '2025-07-28', date_fin: '2025-07-29', couleur: '#06b6d4', notes: '' },
-];
+const samplePlanning: PlanningEvent[] = [];
 
 interface DriverContextType {
   drivers: Driver[];
