@@ -3,8 +3,8 @@ import { usePersistedState } from '../hooks/usePersistedState';
 import { useVehicles } from '../store/VehicleStore';
 import { getFuelPrice, fuelPricesFromSettings } from '../utils/fuelPrices';
 import {
-  MapPin, Navigation, Fuel, Phone, Clock, Route, Car,
-  Gauge, AlertTriangle, CheckCircle2, Search, Printer,
+  MapPin, Navigation, Fuel, Clock, Route,
+  Gauge, AlertTriangle, Printer,
   TrendingUp, Activity,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -129,18 +129,9 @@ interface RouteResult {
   destName: string;
 }
 
-// Historique GPS simulé autour d'Abidjan
-const MOCK_HISTORY = [
-  { address: 'Abidjan, Cocody — Cité des Arts',       lat: 5.3630, lon: -3.9870 },
-  { address: 'Abidjan, Angré — Carrefour Palmeraie',  lat: 5.3940, lon: -3.9760 },
-  { address: 'Abidjan, Bingerville — Route Nationale',lat: 5.3970, lon: -3.8980 },
-  { address: 'Grand-Bassam — Centre-ville',            lat: 5.2010, lon: -3.7400 },
-];
-
 export default function GeolocTrajets() {
   const { vehicles, appSettings } = useVehicles();
   const fuelPrices = fuelPricesFromSettings(appSettings);
-  const [activeTab, setActiveTab] = usePersistedState<'itineraire' | 'suivi'>('fleetgest_draft_geoloc_tab', 'itineraire');
 
   // Itinéraire
   const [selectedVehicleId, setSelectedVehicleId] = usePersistedState('fleetgest_draft_geoloc_vehicle', '');
@@ -149,13 +140,7 @@ export default function GeolocTrajets() {
   const [routeResult, setRouteResult] = usePersistedState<RouteResult | null>('fleetgest_draft_geoloc_result', null);
   const [error, setError] = useState('');
 
-  // Suivi GPS
-  const [trackVehicleId, setTrackVehicleId] = usePersistedState('fleetgest_draft_geoloc_track_vehicle', '');
-  const [tracking, setTracking] = usePersistedState('fleetgest_draft_geoloc_tracking', false);
-  const [trackHistory, setTrackHistory] = usePersistedState<Array<{ address: string; lat: number; lon: number; date: string }>>('fleetgest_draft_geoloc_track_history', []);
-
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
-  const trackVehicle    = vehicles.find(v => v.id === trackVehicleId);
 
   const originZone      = useMemo(() => detectIvoryCoastZoneFromText(origin), [origin]);
   const destinationZone = useMemo(() => detectIvoryCoastZoneFromText(destination), [destination]);
@@ -215,55 +200,21 @@ export default function GeolocTrajets() {
     return 7;
   }, [routeResult]);
 
-  // Suivi GPS : chargement instantané depuis données simulées
-  const handleTrack = useCallback(() => {
-    if (!trackVehicleId) return;
-    const now = Date.now();
-    setTrackHistory(MOCK_HISTORY.map((h, i) => ({
-      ...h,
-      date: new Date(now - (MOCK_HISTORY.length - i) * 3600 * 1000).toISOString(),
-    })));
-    setTracking(true);
-  }, [trackVehicleId]);
-
-  const trackMapCenter: [number, number] = useMemo(() =>
-    trackHistory.length > 0
-      ? [trackHistory[trackHistory.length - 1].lat, trackHistory[trackHistory.length - 1].lon]
-      : [5.3484, -4.0305],
-  [trackHistory]);
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-white p-6 shadow-sm print:hidden">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Géolocalisation & Trajets</h2>
-          <p className="mt-1 text-sm text-slate-500">Calcul d'itinéraires CI, estimation carburant et suivi de position.</p>
+          <p className="mt-1 text-sm text-slate-500">Calcul d'itinéraires en Côte d'Ivoire et estimation carburant.</p>
         </div>
         <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
           <Printer className="h-4 w-4" /> Imprimer
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-        {[
-          { id: 'itineraire' as const, label: 'Itinéraire & Consommation', icon: Route },
-          { id: 'suivi'      as const, label: 'Suivi GPS',                 icon: MapPin },
-        ].map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-md py-2.5 text-sm font-medium transition-all ${
-                activeTab === tab.id ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              <Icon className="h-4 w-4" />{tab.label}
-            </button>
-          );
-        })}
-      </div>
-
       {/* ── ITINÉRAIRE ── */}
-      {activeTab === 'itineraire' && (
+      {(
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Formulaire */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-1 space-y-4">
@@ -389,108 +340,6 @@ export default function GeolocTrajets() {
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-16 text-slate-400">
                 <Route className="h-14 w-14 mb-3" />
                 <p className="text-sm">Sélectionnez un véhicule, saisissez un départ et une destination</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── SUIVI GPS ── */}
-      {activeTab === 'suivi' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-1 space-y-4">
-            <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
-              <MapPin className="h-5 w-5 text-emerald-600" />Suivi GPS
-            </h3>
-
-            <label className="block text-xs font-medium text-slate-600">
-              Véhicule à suivre
-              <select value={trackVehicleId} onChange={e => { setTrackVehicleId(e.target.value); setTracking(false); setTrackHistory([]); }}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                <option value="">Sélectionner…</option>
-                {vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation} — {v.marque}</option>)}
-              </select>
-            </label>
-
-            {trackVehicle && (
-              <div className="space-y-3 rounded-lg bg-slate-50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100"><Car className="h-5 w-5 text-emerald-600" /></div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{trackVehicle.numero_immatriculation}</p>
-                    <p className="text-xs text-slate-500">{trackVehicle.marque} {trackVehicle.type_commercial}</p>
-                  </div>
-                </div>
-                <div className="space-y-1.5 text-xs text-slate-600">
-                  <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-blue-500" /><strong>Tél. GPS :</strong> {trackVehicle.telephone_gps || 'Non renseigné'}</p>
-                  <p className="flex items-center gap-2"><Gauge className="h-3.5 w-3.5 text-amber-500" /><strong>Km :</strong> {trackVehicle.kilometrage.toLocaleString()} km</p>
-                  <p className="flex items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                      trackVehicle.statut === 'Actif' ? 'bg-green-100 text-green-700' :
-                      trackVehicle.statut === 'En maintenance' ? 'bg-amber-100 text-amber-700' :
-                      'bg-red-100 text-red-700'}`}>
-                      {trackVehicle.statut}
-                    </span>
-                  </p>
-                </div>
-                <button onClick={handleTrack} disabled={tracking}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
-                  {tracking ? <CheckCircle2 className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-                  {tracking ? 'Suivi actif' : 'Lancer le suivi'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4 lg:col-span-2">
-            {tracking && trackVehicle ? (
-              <>
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h3 className="mb-4 text-lg font-semibold text-slate-800">Position actuelle</h3>
-                  <div className="h-72 w-full rounded-xl border border-slate-200 overflow-hidden mb-4" style={{ zIndex: 0 }}>
-                    <MapContainer key="track-map" center={trackMapCenter} zoom={12}
-                      style={{ height: '100%', width: '100%' }} scrollWheelZoom>
-                      <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      {trackHistory.map((h, i) => (
-                        <Marker key={i} position={[h.lat, h.lon]}>
-                          <Popup>{h.address}<br /><span className="text-xs text-slate-500">{new Date(h.date).toLocaleTimeString('fr-FR')}</span></Popup>
-                        </Marker>
-                      ))}
-                      {trackHistory.length > 1 && (
-                        <Polyline positions={trackHistory.map(h => [h.lat, h.lon] as [number, number])} color="#f59e0b" weight={4} dashArray="8,4" />
-                      )}
-                    </MapContainer>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-emerald-50 p-3"><p className="text-xs text-emerald-600">Latitude</p><p className="font-bold text-emerald-800">{trackMapCenter[0].toFixed(4)}° N</p></div>
-                    <div className="rounded-lg bg-emerald-50 p-3"><p className="text-xs text-emerald-600">Longitude</p><p className="font-bold text-emerald-800">{Math.abs(trackMapCenter[1]).toFixed(4)}° W</p></div>
-                    <div className="rounded-lg bg-emerald-50 p-3"><p className="text-xs text-emerald-600">Mise à jour</p><p className="font-bold text-emerald-800">À l'instant</p></div>
-                  </div>
-                  <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                    <MapPin className="mr-1 inline h-4 w-4 text-red-500" />
-                    <strong>Dernière adresse :</strong> {trackHistory[trackHistory.length - 1]?.address}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h3 className="mb-3 text-base font-semibold text-slate-800">Historique des positions</h3>
-                  <div className="space-y-2">
-                    {trackHistory.slice().reverse().map((pos, i) => (
-                      <div key={i} className="flex items-start gap-3 rounded-lg bg-slate-50 border border-slate-100 p-3">
-                        <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">{pos.address}</p>
-                          <p className="text-xs text-slate-500">{new Date(pos.date).toLocaleString('fr-FR')} — {pos.lat.toFixed(4)}°, {pos.lon.toFixed(4)}°</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-16 text-slate-400">
-                <MapPin className="h-14 w-14 mb-3" />
-                <p className="text-sm">Sélectionnez un véhicule et lancez le suivi</p>
               </div>
             )}
           </div>
