@@ -82,11 +82,11 @@ export default function VehicleList() {
       validite_carte_stationnement: getCell(row, ['validite_carte_stationnement']),
       cout_assurance_annuel: parseAmount(getCell(row, ['cout assurance annuel (fcfa)', 'cout_assurance_annuel'])),
       affectation: getCell(row, ['affectation']),
-      zone_affectation: (getCell(row, ['zone', 'zone_affectation']) || undefined) as Vehicle['zone_affectation'],
+      zone_affectation: (['Nord', 'Sud', 'Est', 'Centre', 'Ouest'].includes(getCell(row, ['zone', 'zone_affectation'])) ? getCell(row, ['zone', 'zone_affectation']) : null) as Vehicle['zone_affectation'],
       zone_travail: getCell(row, ['zone de travail', 'zone_travail']),
       conducteur: getCell(row, ['conducteur']),
       observations: getCell(row, ['observations']),
-      consommation_100km: parseAmount(getCell(row, ['consommation (l/100km)', 'consommation_100km'])) || undefined,
+      consommation_100km: parseAmount(getCell(row, ['consommation (l/100km)', 'consommation_100km'])) || null,
     };
   };
 
