@@ -47,7 +47,7 @@ export default function Expenses() {
     const text = `${expense.libelle} ${expense.categorie} ${expense.fournisseur} ${expense.numero_piece} ${vehicle?.numero_immatriculation ?? ''}`.toLowerCase();
     const matchSearch = !search || text.includes(search.toLowerCase());
     const matchCat = !filterCategory || expense.categorie === filterCategory;
-    const matchVeh = !filterVehicle || expense.vehicleId === filterVehicle;
+    const matchVeh = !filterVehicle || (filterVehicle === '__sans_vehicule__' ? !expense.vehicleId : expense.vehicleId === filterVehicle);
     const matchFrom = !periodFrom || expense.date >= periodFrom;
     const matchTo = !periodTo || expense.date <= periodTo;
     return matchSearch && matchCat && matchVeh && matchFrom && matchTo;
@@ -85,13 +85,17 @@ export default function Expenses() {
   const buildExpenseFromRow = (row: Record<string, unknown>, index: number): ExpenseRecord | null => {
     const plate = getCell(row, ['immatriculation', 'numero_immatriculation', 'plaque', 'vehicule', 'véhicule']);
     const vehicle = vehicles.find((item) => item.numero_immatriculation.toLowerCase() === plate.toLowerCase());
-    if (!vehicle) return null;
     const rawCategory = getCell(row, ['categorie', 'catégorie', 'type', 'nature']);
     const categorie = categoryOptions.includes(rawCategory as ExpenseCategory) ? (rawCategory as ExpenseCategory) : 'Autre';
     const montant = parseAmount(getCell(row, ['montant', 'cout', 'coût', 'prix', 'amount']));
     if (!montant) return null;
     const dateExpense = getCell(row, ['date', 'date_depense', 'date_dépense']) || new Date().toISOString().slice(0, 10);
-    return { id: 'e-import-' + Date.now() + '-' + index, vehicleId: vehicle.id, date: dateExpense, categorie, libelle: getCell(row, ['libelle', 'libellé', 'description', 'objet']) || categorie, montant, fournisseur: getCell(row, ['fournisseur', 'garage', 'station', 'prestataire']), mode_paiement: getCell(row, ['mode_paiement', 'paiement', 'mode']) || 'Non précisé', numero_piece: getCell(row, ['numero_piece', 'n_piece', 'facture', 'recu', 'reçu']), justificatif_nom: getCell(row, ['justificatif', 'piece_jointe', 'pièce_jointe']), notes: getCell(row, ['notes', 'observation', 'observations']), date_entretien: categorie === 'Entretien' ? (getCell(row, ['date_entretien', 'date entretien']) || dateExpense) : '', kilometrage_entretien: categorie === 'Entretien' ? parseAmount(getCell(row, ['kilometrage_entretien', 'kilometrage', 'kilométrage', 'km_entretien', 'km'])) : 0 };
+    const rawNotes = getCell(row, ['notes', 'observation', 'observations']);
+    // Le véhicule n'est plus obligatoire : une dépense sans véhicule reconnu est importée quand
+    // même (vehicleId vide), et si un nom de véhicule était mentionné sans être reconnu, on le
+    // garde dans les notes pour ne pas perdre l'information.
+    const notes = (!vehicle && plate) ? `[Véhicule mentionné non reconnu : ${plate}]${rawNotes ? ' ' + rawNotes : ''}` : rawNotes;
+    return { id: 'e-import-' + Date.now() + '-' + index, vehicleId: vehicle?.id || '', date: dateExpense, categorie, libelle: getCell(row, ['libelle', 'libellé', 'description', 'objet']) || categorie, montant, fournisseur: getCell(row, ['fournisseur', 'garage', 'station', 'prestataire']), mode_paiement: getCell(row, ['mode_paiement', 'paiement', 'mode']) || 'Non précisé', numero_piece: getCell(row, ['numero_piece', 'n_piece', 'facture', 'recu', 'reçu']), justificatif_nom: getCell(row, ['justificatif', 'piece_jointe', 'pièce_jointe']), notes, date_entretien: categorie === 'Entretien' ? (getCell(row, ['date_entretien', 'date entretien']) || dateExpense) : '', kilometrage_entretien: categorie === 'Entretien' ? parseAmount(getCell(row, ['kilometrage_entretien', 'kilometrage', 'kilométrage', 'km_entretien', 'km'])) : 0 };
   };
 
   const processImportFile = async (file: File) => {
@@ -147,7 +151,7 @@ export default function Expenses() {
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher..." className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
               </div>
               <select value={filterVehicle} onChange={(e) => setFilterVehicle(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                <option value="">Tous les véhicules</option>{vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}
+                <option value="">Tous les véhicules</option><option value="__sans_vehicule__">Sans véhicule</option>{vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}
               </select>
               <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
                 <option value="">Toutes catégories</option>{categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
@@ -168,7 +172,7 @@ export default function Expenses() {
                   return (
                     <tr key={expense.id} className={`hover:bg-slate-50 ${fromMaintenance ? 'bg-amber-50/30' : ''}`}>
                       <td className="px-4 py-3 text-sm text-slate-600">{formatDate(expense.date)}</td>
-                      <td className="px-4 py-3">{vehicle ? <Link to={`/vehicule/${vehicle.id}`} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">{vehicle.numero_immatriculation}</Link> : <span className="text-sm text-slate-400">Supprimé</span>}</td>
+                      <td className="px-4 py-3">{vehicle ? <Link to={`/vehicule/${vehicle.id}`} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">{vehicle.numero_immatriculation}</Link> : <span className="text-sm text-slate-400">{expense.vehicleId ? 'Supprimé' : 'Sans véhicule'}</span>}</td>
                       <td className="px-4 py-3"><p className="text-sm font-semibold text-slate-800">{expense.libelle}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="rounded-full bg-slate-100 px-2 py-0.5">{expense.categorie}</span>
