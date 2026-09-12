@@ -239,7 +239,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }
   const isKnownPayment = (mode: string) => PAYMENT_OPTIONS.includes(mode);
   const draftKey = expense ? `fleetgest_draft_expense_edit_${expense.id}` : 'fleetgest_draft_expense_new';
   const [f, setF] = usePersistedState(draftKey, {
-    vehicleId: expense?.vehicleId || '',
+    vehicleId: expense ? (expense.vehicleId || '__autre__') : '',
     date: expense?.date || new Date().toISOString().slice(0, 10),
     categorie: (expense?.categorie || 'Carburant') as ExpenseCategory,
     libelle: expense?.libelle || '',
@@ -260,7 +260,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }
     if (!f.vehicleId || !f.libelle || !f.montant) return;
     const finalPaiement = f.mode_paiement === 'Autre' ? (customPaiement.trim() || 'Autre') : f.mode_paiement;
     const data = {
-      vehicleId: f.vehicleId, date: f.date, categorie: f.categorie, libelle: f.libelle, montant: Number(f.montant),
+      vehicleId: f.vehicleId === '__autre__' ? '' : f.vehicleId, date: f.date, categorie: f.categorie, libelle: f.libelle, montant: Number(f.montant),
       fournisseur: f.fournisseur, mode_paiement: finalPaiement, numero_piece: f.numero_piece, justificatif_nom: f.justificatif_nom,
       notes: f.notes, date_entretien: f.categorie === 'Entretien' ? f.date_entretien || f.date : '',
       kilometrage_entretien: f.categorie === 'Entretien' ? Number(f.kilometrage_entretien) || 0 : 0,
@@ -280,6 +280,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }
           <label className="col-span-2 block text-xs font-medium text-slate-600">Véhicule
             <select required value={f.vehicleId} onChange={(e) => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
               <option value="">Sélectionner un véhicule</option>
+              <option value="__autre__">Autre (non lié à un véhicule)</option>
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation} - {v.marque} {v.type_commercial}</option>)}
             </select>
           </label>
