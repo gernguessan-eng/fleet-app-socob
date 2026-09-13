@@ -156,12 +156,13 @@ export default function FuelManagement() {
   const buildFuelExpenseFromRow = (row: Record<string, unknown>, index: number): ExpenseRecord | null => {
     const plate = getCell(row, ['immatriculation', 'numero_immatriculation', 'plaque', 'vehicule', 'véhicule']);
     const vehicle = vehicles.find((v) => v.numero_immatriculation.toLowerCase() === plate.toLowerCase());
-    if (!vehicle) return null;
     const montant = parseAmount(getCell(row, ['montant', 'cout', 'coût', 'prix', 'amount']));
     if (!montant) return null;
+    const rawNotes = getCell(row, ['notes', 'observation', 'observations']);
+    const notes = (!vehicle && plate) ? `[Véhicule mentionné non reconnu : ${plate}]${rawNotes ? ' ' + rawNotes : ''}` : rawNotes;
     return {
       id: 'e-fuel-import-' + Date.now() + '-' + index,
-      vehicleId: vehicle.id,
+      vehicleId: vehicle?.id || '',
       date: getCell(row, ['date']) || new Date().toISOString().slice(0, 10),
       categorie: 'Carburant',
       libelle: getCell(row, ['libelle', 'libellé', 'description']) || 'Plein carburant',
@@ -170,7 +171,7 @@ export default function FuelManagement() {
       mode_paiement: getCell(row, ['mode_paiement', 'paiement', 'mode']) || 'Non précisé',
       numero_piece: getCell(row, ['numero_piece', 'n_piece', 'facture', 'recu', 'reçu']),
       justificatif_nom: '',
-      notes: getCell(row, ['notes', 'observation', 'observations']),
+      notes,
     };
   };
 
