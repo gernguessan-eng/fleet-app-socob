@@ -17,7 +17,7 @@ const ALL_KPI_TITLES = [
   'Total Véhicules', 'Véhicules Actifs', 'En Maintenance', 'Hors Service', 'Kilométrage Moyen', 'Coût Opérationnel',
   'Taux de Disponibilité', "Taux d'Immobilisation",
   'TCO Global', 'Sinistres', 'Immobilisations',
-  'Flotte / Type de véhicule', 'Flotte / Département', 'Flotte / Âge', 'Répartition de la flotte / Usage', 'Carte de répartition',
+  'Flotte / Type de véhicule', 'Flotte / Zone de travail', 'Flotte / Âge', 'Répartition de la flotte / Usage', 'Carte de répartition',
   'Répartition par Marque', 'Dépenses par Catégorie', 'Évolution mensuelle des dépenses',
   'Alertes entretiens', 'Alertes échéances',
 ];
@@ -151,7 +151,7 @@ export default function Dashboard() {
 
   // Répartitions
   const fleetByType = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const t = v.carrosserie || v.genre || 'Non renseigné'; m.set(t, (m.get(t) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
-  const fleetByDept = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const d = v.affectation || 'Non affecté'; m.set(d, (m.get(d) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
+  const fleetByZone = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const z = v.zone_travail || 'Non renseigné'; m.set(z, (m.get(z) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
   const fleetByAge = useMemo(() => {
     const buckets: Record<string, number> = { '0-2 ans': 0, '2-4 ans': 0, '4-6 ans': 0, '6-8 ans': 0, '8+ ans': 0 };
     fv.forEach(v => { const a = getAge(v.date_mise_circulation); if (a < 2) buckets['0-2 ans']++; else if (a < 4) buckets['2-4 ans']++; else if (a < 6) buckets['4-6 ans']++; else if (a < 8) buckets['6-8 ans']++; else buckets['8+ ans']++; });
@@ -343,11 +343,11 @@ export default function Dashboard() {
             </>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Département') ? 'print:hidden' : ''}`}>
-          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Département</h3>
-          {fleetByDept.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(240, fleetByDept.length * 46)}>
-              <BarChart data={fleetByDept} layout="vertical" margin={{ top: 5, left: 5, right: 30, bottom: 5 }} barCategoryGap="25%">
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Zone de travail') ? 'print:hidden' : ''}`}>
+          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Zone de travail</h3>
+          {fleetByZone.length > 0 ? (
+            <ResponsiveContainer width="100%" height={Math.max(240, fleetByZone.length * 46)}>
+              <BarChart data={fleetByZone} layout="vertical" margin={{ top: 5, left: 5, right: 30, bottom: 5 }} barCategoryGap="25%">
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10.5 }} interval={0} tickLine={false} axisLine={false} />
                 <Tooltip formatter={v => [`${v} véh.`, '']} />
