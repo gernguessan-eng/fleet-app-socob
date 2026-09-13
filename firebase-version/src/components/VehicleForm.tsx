@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { useVehicles } from '../store/VehicleStore';
+import { useDrivers } from '../store/DriverStore';
 import type { Vehicle } from '../types';
 import { X, FileImage } from 'lucide-react';
 import { uploadVehicleImage, validateImageFile } from '../utils/uploadImage';
@@ -69,6 +70,11 @@ const emptyVehicle: Omit<Vehicle, 'id'> = {
 
 export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormProps) {
   const { addVehicle, updateVehicle } = useVehicles();
+  const { drivers } = useDrivers();
+  const conducteurOptions = [
+    ...drivers.map((d) => { const nomComplet = `${d.nom} ${d.prenom}`.trim(); return { value: nomComplet, label: nomComplet }; }),
+    { value: 'Autre', label: 'Autre' },
+  ];
   // Clé de brouillon distincte par véhicule modifié (et une clé fixe pour un nouveau
   // véhicule), pour que la saisie en cours survive à une navigation vers une autre page
   // puis un retour, sans mélanger les brouillons de deux véhicules différents.
@@ -317,7 +323,7 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
                 { value: 'Ouest', label: 'Ouest' },
               ])}
               {renderInput("Zone de travail", "zone_travail", "text", undefined, "Ex: Chantier Cocody, Dépôt Yopougon…")}
-              {renderInput("Conducteur", "conducteur")}
+              {renderInput("Conducteur", "conducteur", 'text', conducteurOptions)}
               {renderInput("Consommation aux 100km (L)", "consommation_100km", "number")}
               {renderInput("Téléphone balise GPS", "telephone_gps")}
               <div className="col-span-2">
