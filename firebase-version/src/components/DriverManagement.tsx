@@ -347,7 +347,7 @@ export default function DriverManagement() {
     });
     exportRowsToExcel(rows, 'chauffeurs.xlsx', 'Chauffeurs');
   };
-  const { vehicles } = useVehicles();
+  const { vehicles, updateVehicle } = useVehicles();
   const [tab, setTab] = usePersistedState<'chauffeurs' | 'missions' | 'planning'>('fleetgest_filter_drivers_tab', 'chauffeurs');
   const [search, setSearch] = usePersistedState('fleetgest_filter_drivers_search', '');
   const [missionsSortOrder, setMissionsSortOrder] = usePersistedState<SortOrder>('fleetgest_sort_missions_date', 'desc');
@@ -506,8 +506,33 @@ export default function DriverManagement() {
               vehicles={vehicleOptions}
               onClose={() => { setShowDriverForm(false); setEditDriverId(null); }}
               onSave={data => {
+                const driverId = editDriverId || 'dr' + Date.now();
+                const fullName = `${data.nom} ${data.prenom}`.trim();
+                const oldVehicleId = editDriverId ? (drivers.find(d => d.id === editDriverId)?.vehicule_affecte_id || '') : '';
+                const newVehicleId = data.vehicule_affecte_id;
+
                 if (editDriverId) updateDriver(editDriverId, data);
-                else addDriver({ ...data, id: 'dr' + Date.now() });
+                else addDriver({ ...data, id: driverId });
+
+                // Synchronisation avec la fiche du véhicule (champ "Conducteur")
+                if (newVehicleId !== oldVehicleId) {
+                  if (oldVehicleId) {
+                    const oldVeh = vehicles.find(v => v.id === oldVehicleId);
+                    if (oldVeh && oldVeh.conducteur === fullName) updateVehicle(oldVehicleId, { conducteur: '' });
+                  }
+                  if (newVehicleId) {
+                    // Si un autre chauffeur était déjà marqué "conducteur" sur ce véhicule, on le désassocie
+                    // pour éviter que deux chauffeurs pointent vers le même véhicule à la fois.
+                    const otherDriver = drivers.find(d => d.vehicule_affecte_id === newVehicleId && d.id !== driverId);
+                    if (otherDriver) updateDriver(otherDriver.id, { vehicule_affecte_id: '' });
+                    updateVehicle(newVehicleId, { conducteur: fullName });
+                  }
+                } else if (newVehicleId) {
+                  // Le véhicule affecté n'a pas changé, mais le nom du chauffeur a peut-être été modifié :
+                  // on garde la case "conducteur" du véhicule à jour.
+                  updateVehicle(newVehicleId, { conducteur: fullName });
+                }
+
                 setShowDriverForm(false); setEditDriverId(null);
               }}
             />
