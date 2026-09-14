@@ -343,19 +343,35 @@ export default function Dashboard() {
             </>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Zone de travail') ? 'print:hidden' : ''}`}>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2 ${hiddenKpis.has('Flotte / Zone de travail') ? 'print:hidden' : ''}`}>
           <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Zone de travail</h3>
           {fleetByZone.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(240, fleetByZone.length * 46)}>
-              <BarChart data={fleetByZone} layout="vertical" margin={{ top: 5, left: 5, right: 30, bottom: 5 }} barCategoryGap="25%">
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10.5 }} interval={0} tickLine={false} axisLine={false} />
-                <Tooltip formatter={v => [`${v} véh.`, '']} />
-                <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={22}>
-                  <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 'bold', fill: '#475569' }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div
+              style={{
+                display: 'grid',
+                gridAutoFlow: 'column',
+                gridTemplateRows: `repeat(${Math.min(10, fleetByZone.length)}, auto)`,
+                gridTemplateColumns: fleetByZone.length > 10 ? '1fr 1fr' : '1fr',
+                columnGap: '1.75rem',
+                rowGap: '0.6rem',
+              }}
+            >
+              {(() => {
+                const maxZoneValue = Math.max(...fleetByZone.map((z) => z.value));
+                return fleetByZone.map((z) => (
+                  <div key={z.name} className="flex items-center gap-2" title={`${z.name} : ${z.value} véhicule(s)`}>
+                    <span className="w-[110px] flex-shrink-0 truncate text-[10.5px] text-slate-600">{z.name}</span>
+                    <div className="h-[18px] flex-1 rounded bg-slate-100">
+                      <div
+                        className="h-full rounded bg-indigo-500"
+                        style={{ width: `${Math.max(6, (z.value / maxZoneValue) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="w-6 flex-shrink-0 text-right text-[11px] font-bold text-slate-600">{z.value}</span>
+                  </div>
+                ));
+              })()}
+            </div>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
         <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Âge') ? 'print:hidden' : ''}`}>
