@@ -70,7 +70,7 @@ const emptyVehicle: Omit<Vehicle, 'id'> = {
 
 export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormProps) {
   const { addVehicle, updateVehicle } = useVehicles();
-  const { drivers } = useDrivers();
+  const { drivers, updateDriver } = useDrivers();
   const conducteurOptions = [
     ...drivers.map((d) => { const nomComplet = `${d.nom} ${d.prenom}`.trim(); return { value: nomComplet, label: nomComplet }; }),
     { value: 'Autre', label: 'Autre' },
@@ -92,10 +92,31 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const thisVehicleId = vehicle ? vehicle.id : pendingId;
+    const oldConducteur = vehicle?.conducteur || '';
+    const newConducteur = formData.conducteur || '';
     if (vehicle) {
       updateVehicle(vehicle.id, formData);
     } else {
       addVehicle({ ...formData, id: pendingId });
+    }
+    // Synchronisation avec la fiche du chauffeur (champ "Véhicule affecté")
+    if (newConducteur !== oldConducteur) {
+      if (oldConducteur && oldConducteur !== 'Autre') {
+        const oldDriver = drivers.find((d) => `${d.nom} ${d.prenom}`.trim() === oldConducteur && d.vehicule_affecte_id === thisVehicleId);
+        if (oldDriver) updateDriver(oldDriver.id, { vehicule_affecte_id: '' });
+      }
+      if (newConducteur && newConducteur !== 'Autre') {
+        const newDriver = drivers.find((d) => `${d.nom} ${d.prenom}`.trim() === newConducteur);
+        if (newDriver) {
+          // Si ce chauffeur était déjà affecté à un autre véhicule, on vide la case
+          // "conducteur" de cet ancien véhicule pour éviter qu'il soit affiché sur deux fiches à la fois.
+          if (newDriver.vehicule_affecte_id && newDriver.vehicule_affecte_id !== thisVehicleId) {
+            updateVehicle(newDriver.vehicule_affecte_id, { conducteur: '' });
+          }
+          updateDriver(newDriver.id, { vehicule_affecte_id: thisVehicleId });
+        }
+      }
     }
     try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     onSave();
