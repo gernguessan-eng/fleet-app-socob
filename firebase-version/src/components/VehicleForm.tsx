@@ -84,6 +84,11 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
   // Identifiant stable dès l'ouverture du formulaire (même pour un nouveau véhicule) afin
   // que l'import de documents fonctionne immédiatement, avant le premier enregistrement.
   const [pendingId] = useState(() => vehicle?.id || 'v' + Date.now());
+  const knownEnergies = ['Essence', 'Diesel', 'Hybride', 'Électrique', 'GPL', 'Sans énergie'];
+  const [customEnergy, setCustomEnergy] = useState(() => {
+    const e = (vehicle ? vehicle.energie : emptyVehicle.energie) || '';
+    return e !== '' && !knownEnergies.includes(e);
+  });
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -268,13 +273,30 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
                 { value: 'Location', label: 'Location' },
                 { value: 'Ambulance', label: 'Ambulance' },
               ])}
-              {renderInput("Énergie", "energie", "text", [
-                { value: 'Essence', label: 'Essence' },
-                { value: 'Diesel', label: 'Diesel' },
-                { value: 'Hybride', label: 'Hybride' },
-                { value: 'Électrique', label: 'Électrique' },
-                { value: 'GPL', label: 'GPL' },
-              ])}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Énergie</label>
+                <select
+                  value={customEnergy ? 'Autre' : (formData.energie || '')}
+                  onChange={(e) => {
+                    if (e.target.value === 'Autre') { setCustomEnergy(true); handleChange('energie', ''); }
+                    else { setCustomEnergy(false); handleChange('energie', e.target.value); }
+                  }}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="" disabled>Sélectionner...</option>
+                  {knownEnergies.map((o) => <option key={o} value={o}>{o}</option>)}
+                  <option value="Autre">Autre</option>
+                </select>
+                {customEnergy && (
+                  <input
+                    type="text"
+                    value={formData.energie || ''}
+                    onChange={(e) => handleChange('energie', e.target.value)}
+                    placeholder="Préciser l'énergie..."
+                    className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                  />
+                )}
+              </div>
               {renderInput("Date 1ère mise en circulation", "date_mise_circulation", "date")}
               {renderInput("Date d'édition", "date_edition", "date")}
               {renderInput("Places assises", "places_assises", "number")}
