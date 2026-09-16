@@ -332,7 +332,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
     const monthlyExpenses = Array.from(expenseMonthMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0])) // tri chronologique fiable sur la clé "AAAA-MM"
       .map(([, { label, cost }]) => ({ month: label, cost }))
-      .slice(-6);
+      .slice(-12);
 
     const expenseCategoryMap = new Map<string, number>();
     expenseRecords.forEach((expense) => {
