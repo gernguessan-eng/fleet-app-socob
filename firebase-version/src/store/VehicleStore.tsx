@@ -319,15 +319,19 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    const expenseMonthMap = new Map<string, number>();
+    const expenseMonthMap = new Map<string, { label: string; cost: number }>();
     expenseRecords.forEach((expense) => {
       const d = new Date(expense.date);
-      const key = d.toLocaleString('fr-FR', { month: 'short', year: 'numeric' });
-      expenseMonthMap.set(key, (expenseMonthMap.get(key) || 0) + expense.montant);
+      if (isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // clé triable ex: "2026-03"
+      const label = d.toLocaleString('fr-FR', { month: 'short', year: 'numeric' }); // affichage ex: "mars 2026"
+      const entry = expenseMonthMap.get(key) || { label, cost: 0 };
+      entry.cost += expense.montant;
+      expenseMonthMap.set(key, entry);
     });
     const monthlyExpenses = Array.from(expenseMonthMap.entries())
-      .map(([month, cost]) => ({ month, cost }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
+      .sort((a, b) => a[0].localeCompare(b[0])) // tri chronologique fiable sur la clé "AAAA-MM"
+      .map(([, { label, cost }]) => ({ month: label, cost }))
       .slice(-6);
 
     const expenseCategoryMap = new Map<string, number>();
