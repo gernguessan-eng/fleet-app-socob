@@ -116,6 +116,8 @@ export interface Driver {
   vehicule_affecte_id: string;
   statut: 'Disponible' | 'En mission' | 'En congé' | 'Indisponible';
   photo_url?: string;
+  permis_recto_url?: string;
+  permis_verso_url?: string;
   notes: string;
 }
 
