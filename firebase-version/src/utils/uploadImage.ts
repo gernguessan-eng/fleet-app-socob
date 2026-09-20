@@ -17,6 +17,21 @@ export async function uploadVehicleImage(vehicleId: string, docKey: string, file
   return getDownloadURL(storageRef);
 }
 
+/**
+ * Importe un document chauffeur (permis de conduire recto/verso, photo…) dans Firebase
+ * Storage et renvoie son URL de téléchargement, sur le même principe que uploadVehicleImage.
+ *
+ * @param driverId identifiant du chauffeur (utilisé comme dossier de rangement)
+ * @param docKey   clé du document, ex: "permis_recto_url", "permis_verso_url", "photo"…
+ */
+export async function uploadDriverImage(driverId: string, docKey: string, file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const path = `drivers/${driverId}/${docKey}_${Date.now()}.${ext}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return getDownloadURL(storageRef);
+}
+
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo
 
 export function validateImageFile(file: File): string | null {
