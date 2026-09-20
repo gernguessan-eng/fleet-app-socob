@@ -5,10 +5,11 @@ import { usePersistedState } from '../hooks/usePersistedState';
 import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { Driver, Mission, PlanningEvent } from '../types';
 import { getCell, readTabularFile, exportRowsToExcel } from '../utils/excelIO';
+import { uploadDriverImage, validateImageFile } from '../utils/uploadImage';
 import {
   Users, ClipboardList, CalendarDays, Plus, Pencil, Search,
   Phone, Mail, Car, MapPin, Printer, ChevronRight,
-  CheckCircle2, AlertTriangle, X, Upload, Download,
+  CheckCircle2, AlertTriangle, X, Upload, Download, FileImage,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
 
@@ -37,14 +38,61 @@ const EVENT_COLORS: Record<string, string> = {
 // ─────────────────────────────────────────────────────────
 // Formulaire générique pour chauffeurs
 // ─────────────────────────────────────────────────────────
-const emptyDriver: Omit<Driver, 'id'> = { nom: '', prenom: '', telephone: '', email: '', numero_permis: '', categorie_permis: 'B', date_expiration_permis: '', date_embauche: '', vehicule_affecte_id: '', statut: 'Disponible', photo_url: '', notes: '' };
+const emptyDriver: Omit<Driver, 'id'> = { nom: '', prenom: '', telephone: '', email: '', numero_permis: '', categorie_permis: 'B', date_expiration_permis: '', date_embauche: '', vehicule_affecte_id: '', statut: 'Disponible', photo_url: '', permis_recto_url: '', permis_verso_url: '', notes: '' };
 
 function DriverFormModal({ driver, vehicles, onSave, onClose }: {
   driver?: Driver; vehicles: { id: string; label: string }[]; onSave: (data: Omit<Driver, 'id'>) => void; onClose: () => void;
 }) {
   const draftKey = driver ? `fleetgest_draft_driver_edit_${driver.id}` : 'fleetgest_draft_driver_new';
+  const [pendingId] = useState(() => driver?.id || 'dr' + Date.now());
   const [f, setF] = usePersistedState<Omit<Driver, 'id'>>(draftKey, driver ? { ...driver } : { ...emptyDriver });
   const up = (k: string, v: string) => setF(p => ({ ...p, [k]: v }));
+  const [docUploading, setDocUploading] = useState<string | null>(null);
+  const handleDocumentUpload = async (fieldKey: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const error = validateImageFile(file);
+    if (error) { alert(error); return; }
+    setDocUploading(fieldKey);
+    try {
+      const url = await uploadDriverImage(pendingId, fieldKey, file);
+      up(fieldKey, url);
+    } catch {
+      alert("Échec de l'import du document. Vérifiez votre connexion et réessayez.");
+    } finally {
+      setDocUploading(null);
+    }
+  };
+  const renderDocumentUpload = (label: string, fieldKey: 'permis_recto_url' | 'permis_verso_url') => {
+    const value = (f as any)[fieldKey] as string | undefined;
+    const uploading = docUploading === fieldKey;
+    return (
+      <div>
+        <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
+        <div className="flex items-center gap-2">
+          {value ? (
+            <a href={value} target="_blank" rel="noopener noreferrer" className="flex h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200">
+              <img src={value} alt={label} className="h-full w-full object-cover" />
+            </a>
+          ) : (
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-300">
+              <FileImage className="h-4 w-4" />
+            </div>
+          )}
+          <label className="flex-1 cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-center text-xs font-medium text-slate-600 hover:bg-slate-50">
+            {uploading ? 'Import en cours…' : value ? 'Remplacer' : 'Importer'}
+            <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => handleDocumentUpload(fieldKey, e)} />
+          </label>
+          {value && (
+            <button type="button" onClick={() => up(fieldKey, '')} className="flex-shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Retirer le document">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
   const inp = (label: string, key: string, type = 'text', placeholder?: string) => (
     <label className="block text-xs font-medium text-slate-600">{label}
       <input
@@ -73,6 +121,10 @@ function DriverFormModal({ driver, vehicles, onSave, onClose }: {
             </select>
           </label>
           {inp('Expiration permis', 'date_expiration_permis', 'date')}{inp("Date d'embauche", 'date_embauche', 'date')}
+          <div className="col-span-2 grid grid-cols-2 gap-4">
+            {renderDocumentUpload('Permis de conduire (recto)', 'permis_recto_url')}
+            {renderDocumentUpload('Permis de conduire (verso)', 'permis_verso_url')}
+          </div>
           <label className="block text-xs font-medium text-slate-600">Véhicule affecté
             <select value={f.vehicule_affecte_id} onChange={e => up('vehicule_affecte_id', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
               <option value="">Sélectionner un véhicule ou laisser vide...</option>
@@ -495,6 +547,15 @@ export default function DriverManagement() {
                       {permisExpire ? <AlertTriangle className="h-3 w-3 text-red-500" /> : <CheckCircle2 className="h-3 w-3 text-green-500" />}
                       Permis {d.categorie_permis} — expire {fmtDate(d.date_expiration_permis)}
                     </p>
+                    {(d.permis_recto_url || d.permis_verso_url) && (
+                      <p className="flex items-center gap-2 print:hidden">
+                        <FileImage className="h-3 w-3 text-slate-400" />
+                        <span>Copie du permis :</span>
+                        {d.permis_recto_url && <a href={d.permis_recto_url} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-600 hover:underline">recto</a>}
+                        {d.permis_recto_url && d.permis_verso_url && <span className="text-slate-300">|</span>}
+                        {d.permis_verso_url && <a href={d.permis_verso_url} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-600 hover:underline">verso</a>}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
