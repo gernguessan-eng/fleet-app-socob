@@ -369,14 +369,14 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
                       ) : (
                         <label className="mx-auto flex h-20 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
                           {uploading ? <span className="text-[10px]">Import…</span> : <><Upload className="h-4 w-4 mb-0.5" /><span className="text-[9px]">Importer</span></>}
-                          <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => handleDocumentChange(key as string, key, e)} />
+                          <input type="file" accept="image/*,.pdf,application/pdf" className="hidden" disabled={uploading} onChange={(e) => handleDocumentChange(key as string, key, e)} />
                         </label>
                       )}
                       <p className="mt-1 text-[10px] font-medium text-slate-500">{label}</p>
                       {url && (
                         <label className="mt-0.5 inline-block cursor-pointer text-[9px] text-emerald-600 hover:underline">
                           {uploading ? 'Import…' : 'Remplacer'}
-                          <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => handleDocumentChange(key as string, key, e)} />
+                          <input type="file" accept="image/*,.pdf,application/pdf" className="hidden" disabled={uploading} onChange={(e) => handleDocumentChange(key as string, key, e)} />
                         </label>
                       )}
                     </div>
