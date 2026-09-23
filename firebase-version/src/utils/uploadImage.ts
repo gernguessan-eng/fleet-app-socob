@@ -34,8 +34,13 @@ export async function uploadDriverImage(driverId: string, docKey: string, file: 
 
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo
 
+// Accepte les images ainsi que le PDF (courant pour un permis, une carte grise ou une
+// patente scannée). Le nom "validateImageFile" est conservé pour ne pas casser les appels
+// existants ailleurs dans le code.
 export function validateImageFile(file: File): string | null {
-  if (!file.type.startsWith('image/')) return 'Veuillez sélectionner une image (JPG, PNG, WEBP…).';
-  if (file.size > MAX_IMAGE_SIZE_BYTES) return "L'image ne doit pas dépasser 10 Mo.";
+  const isImage = file.type.startsWith('image/');
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  if (!isImage && !isPdf) return 'Veuillez sélectionner une image (JPG, PNG, WEBP…) ou un PDF.';
+  if (file.size > MAX_IMAGE_SIZE_BYTES) return 'Le fichier ne doit pas dépasser 10 Mo.';
   return null;
 }
