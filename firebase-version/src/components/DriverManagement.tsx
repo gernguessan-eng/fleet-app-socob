@@ -82,7 +82,7 @@ function DriverFormModal({ driver, vehicles, onSave, onClose }: {
           )}
           <label className="flex-1 cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-center text-xs font-medium text-slate-600 hover:bg-slate-50">
             {uploading ? 'Import en cours…' : value ? 'Remplacer' : 'Importer'}
-            <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => handleDocumentUpload(fieldKey, e)} />
+            <input type="file" accept="image/*,.pdf,application/pdf" className="hidden" disabled={uploading} onChange={(e) => handleDocumentUpload(fieldKey, e)} />
           </label>
           {value && (
             <button type="button" onClick={() => up(fieldKey, '')} className="flex-shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Retirer le document">
