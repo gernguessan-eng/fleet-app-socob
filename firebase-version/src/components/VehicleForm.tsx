@@ -267,6 +267,7 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
                 { value: 'Utilitaire', label: 'Utilitaire' },
                 { value: 'Camion', label: 'Camion' },
                 { value: 'Moto', label: 'Moto' },
+                { value: 'Tricycle', label: 'Tricycle' },
                 { value: 'Autre', label: 'Autre' },
               ])}
               {renderInput("Usage", "usage_vehicule", "text", [
