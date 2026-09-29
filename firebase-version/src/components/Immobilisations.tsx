@@ -36,6 +36,14 @@ export default function Immobilisations() {
 
   const vehicleById = useMemo(() => new Map(vehicles.map(v => [v.id, v])), [vehicles]);
 
+  // Garages déjà saisis, proposés automatiquement dans le formulaire (sans doublons,
+  // insensible à la casse, triés par ordre alphabétique).
+  const knownGarages = useMemo(() => {
+    const m = new Map<string, string>();
+    records.forEach(r => { const g = r.garage?.trim(); if (g && !m.has(g.toLowerCase())) m.set(g.toLowerCase(), g); });
+    return Array.from(m.values()).sort((x, y) => x.localeCompare(y, 'fr'));
+  }, [records]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return records.filter(r => {
@@ -143,12 +151,12 @@ export default function Immobilisations() {
         </div>
       </div>
 
-      {showForm && <ImmobilisationFormModal record={records.find(r => r.id === editRecordId)} vehicles={vehicles} onSave={handleSave} onClose={() => { setShowForm(false); setEditRecordId(null); }} />}
+      {showForm && <ImmobilisationFormModal record={records.find(r => r.id === editRecordId)} vehicles={vehicles} knownGarages={knownGarages} onSave={handleSave} onClose={() => { setShowForm(false); setEditRecordId(null); }} />}
     </div>
   );
 }
 
-function ImmobilisationFormModal({ record, vehicles, onSave, onClose }: { record?: ImmobilisationRecord; vehicles: { id: string; numero_immatriculation: string }[]; onSave: (data: Omit<ImmobilisationRecord, 'id'>, id?: string) => void; onClose: () => void }) {
+function ImmobilisationFormModal({ record, vehicles, knownGarages, onSave, onClose }: { record?: ImmobilisationRecord; vehicles: { id: string; numero_immatriculation: string }[]; knownGarages: string[]; onSave: (data: Omit<ImmobilisationRecord, 'id'>, id?: string) => void; onClose: () => void }) {
   const draftKey = record ? `fleetgest_draft_immob_edit_${record.id}` : 'fleetgest_draft_immob_new';
   const [f, setF] = usePersistedState(draftKey, {
     vehicleId: record?.vehicleId || vehicles[0]?.id || '', garage: record?.garage || '', date_entree: record?.date_entree || new Date().toISOString().slice(0, 10),
@@ -171,7 +179,7 @@ function ImmobilisationFormModal({ record, vehicles, onSave, onClose }: { record
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><h3 className="text-lg font-bold">{record ? 'Modifier' : 'Nouvelle immobilisation'}</h3><button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button></div>
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 p-6">
           <label className="block text-xs font-medium text-slate-600">Véhicule<select value={f.vehicleId} onChange={e => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">{vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}</select></label>
-          <label className="block text-xs font-medium text-slate-600">Garage<input value={f.garage} onChange={e => up('garage', e.target.value)} placeholder="Nom du garage…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
+          <label className="block text-xs font-medium text-slate-600">Garage<input list="immob-garages" autoComplete="off" value={f.garage} onChange={e => up('garage', e.target.value)} placeholder="Nom du garage…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /><datalist id="immob-garages">{knownGarages.map(g => <option key={g} value={g} />)}</datalist></label>
           <label className="block text-xs font-medium text-slate-600">Date d'entrée<input type="date" value={f.date_entree} onChange={e => up('date_entree', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Date sortie prévue<input type="date" value={f.date_sortie_prevue} onChange={e => up('date_sortie_prevue', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Date sortie réelle<input type="date" value={f.date_sortie_reelle} onChange={e => up('date_sortie_reelle', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>

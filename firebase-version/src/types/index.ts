@@ -53,7 +53,8 @@ export interface Vehicle {
   photo_url?: string;
   // Photos des documents administratifs (images encodées en base64, importées depuis
   // l'appareil de l'utilisateur — voir DocumentUploadField dans VehicleForm.tsx).
-  photo_carte_grise?: string;
+  photo_carte_grise?: string;        // carte grise recto (nom de champ conservé pour les fiches existantes)
+  photo_carte_grise_verso?: string;  // carte grise verso
   photo_patente?: string;
   photo_vignette?: string;
   photo_carte_transport?: string;

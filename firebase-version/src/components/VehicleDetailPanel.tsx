@@ -131,7 +131,8 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
   // carte de stationnement) — même mécanisme que la photo du véhicule : upload vers Firebase
   // Storage, seule l'URL (courte) est enregistrée sur le véhicule.
   const DOCUMENT_FIELDS: { key: keyof Vehicle; label: string }[] = [
-    { key: 'photo_carte_grise', label: 'Carte grise' },
+    { key: 'photo_carte_grise', label: 'Carte grise recto' },
+    { key: 'photo_carte_grise_verso', label: 'Carte grise verso' },
     { key: 'photo_patente', label: 'Patente' },
     { key: 'photo_vignette', label: 'Vignette' },
     { key: 'photo_carte_transport', label: 'Carte de transport' },
@@ -334,7 +335,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
         <div className="lg:col-span-3">
           <Card title={<><FileText className="h-4 w-4" /> Documents administratifs</>}>
             {printMode ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
                 {DOCUMENT_FIELDS.map(({ key, label }) => (
                   <div key={key} className="text-center">
                     {vehicle[key] ? (
@@ -347,7 +348,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {DOCUMENT_FIELDS.map(({ key, label }) => {
                   const url = vehicle[key] as string | undefined;
                   const uploading = docUploading === key;

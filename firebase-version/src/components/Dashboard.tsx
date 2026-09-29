@@ -17,7 +17,7 @@ const ALL_KPI_TITLES = [
   'Total Véhicules', 'Véhicules Actifs', 'En Maintenance', 'Hors Service', 'Kilométrage Moyen', 'Coût Opérationnel',
   'Taux de Disponibilité', "Taux d'Immobilisation",
   'TCO Global', 'Sinistres', 'Immobilisations',
-  'Flotte / Type de véhicule', 'Flotte / Zone de travail', 'Flotte / Âge', 'Répartition de la flotte / Usage', 'Carte de répartition',
+  'Flotte / Type de véhicule', 'Flotte / Genre', 'Flotte / Zone de travail', 'Flotte / Âge', 'Répartition de la flotte / Usage', 'Carte de répartition',
   'Répartition par Marque', 'Dépenses par Catégorie', 'Évolution mensuelle des dépenses',
   'Alertes entretiens', 'Alertes échéances',
 ];
@@ -150,7 +150,10 @@ export default function Dashboard() {
   }, [filteredSinistres, fv, vehicles]);
 
   // Répartitions
-  const fleetByType = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const t = v.carrosserie || v.genre || 'Non renseigné'; m.set(t, (m.get(t) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
+  // Flotte / Genre : basé uniquement sur la case « Genre » de la fiche véhicule.
+  const fleetByGenre = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const g = v.genre?.trim() || 'Non renseigné'; m.set(g, (m.get(g) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
+  // Flotte / Type de véhicule : basé uniquement sur la case « Carrosserie ».
+  const fleetByType = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const t = v.carrosserie?.trim() || 'Non renseigné'; m.set(t, (m.get(t) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
   const fleetByZone = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const z = v.zone_travail || 'Non renseigné'; m.set(z, (m.get(z) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
   const fleetByAge = useMemo(() => {
     const buckets: Record<string, number> = { '0-2 ans': 0, '2-4 ans': 0, '4-6 ans': 0, '6-8 ans': 0, '8+ ans': 0 };
@@ -334,6 +337,29 @@ export default function Dashboard() {
               </ResponsiveContainer>
               <div className="mt-3 space-y-1.5">
                 {fleetByType.map((c, i) => (
+                  <div key={c.name} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex min-w-0 items-center gap-1.5 text-slate-600"><span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} /><span className="truncate">{c.name}</span></span>
+                    <span className="flex-shrink-0 font-semibold text-slate-800">{c.value}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : <p className="text-sm text-slate-400">—</p>}
+        </div>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Genre') ? 'print:hidden' : ''}`}>
+          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Genre</h3>
+          {fleetByGenre.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={fleetByGenre} cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={4} dataKey="value">
+                    {fleetByGenre.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [`${v} véh.`, n]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-3 space-y-1.5">
+                {fleetByGenre.map((c, i) => (
                   <div key={c.name} className="flex items-center justify-between gap-2 text-xs">
                     <span className="flex min-w-0 items-center gap-1.5 text-slate-600"><span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} /><span className="truncate">{c.name}</span></span>
                     <span className="flex-shrink-0 font-semibold text-slate-800">{c.value}</span>

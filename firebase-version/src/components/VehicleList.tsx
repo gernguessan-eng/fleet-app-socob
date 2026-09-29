@@ -1,13 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 import type { Vehicle } from '../types';
 import { getCell, parseAmount, readTabularFile, exportRowsToExcel } from '../utils/excelIO';
 import {
   Search, Plus, Pencil, Trash2, ChevronRight, ChevronDown,
-  ChevronLeft as ChevronLeftIcon, Printer, FolderTree, CheckSquare, Square, Upload, Download,
+  Printer, FolderTree, CheckSquare, Square, Upload, Download,
 } from 'lucide-react';
 import VehicleForm from './VehicleForm';
+import Pagination from './Pagination';
 import VehicleDetailPanel from './VehicleDetailPanel';
 import DeleteGuardButton from './DeleteGuardButton';
 import { useAuth } from '../store/AuthContext';
@@ -82,11 +83,11 @@ export default function VehicleList() {
       validite_carte_stationnement: getCell(row, ['validite_carte_stationnement']),
       cout_assurance_annuel: parseAmount(getCell(row, ['cout assurance annuel (fcfa)', 'cout_assurance_annuel'])),
       affectation: getCell(row, ['affectation']),
-      zone_affectation: (['Nord', 'Sud', 'Est', 'Centre', 'Ouest'].includes(getCell(row, ['zone', 'zone_affectation'])) ? getCell(row, ['zone', 'zone_affectation']) : null) as Vehicle['zone_affectation'],
+      zone_affectation: (getCell(row, ['zone', 'zone_affectation']) || undefined) as Vehicle['zone_affectation'],
       zone_travail: getCell(row, ['zone de travail', 'zone_travail']),
       conducteur: getCell(row, ['conducteur']),
       observations: getCell(row, ['observations']),
-      consommation_100km: parseAmount(getCell(row, ['consommation (l/100km)', 'consommation_100km'])) || null,
+      consommation_100km: parseAmount(getCell(row, ['consommation (l/100km)', 'consommation_100km'])) || undefined,
     };
   };
 
@@ -113,10 +114,16 @@ export default function VehicleList() {
   const [showForm, setShowForm]       = usePersistedState('fleetgest_draft_vehicle_form_open', false);
   const [editVehicleId, setEditVehicleId] = usePersistedState<string | null>('fleetgest_draft_vehicle_edit_id', null);
   const editVehicle = editVehicleId ? vehicles.find(v => v.id === editVehicleId) : undefined;
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // Fiches dépliées mémorisées (sous forme de tableau dans localStorage) pour retrouver
+  // la fiche ouverte au retour dans le menu.
+  const [expandedArr, setExpandedArr] = usePersistedState<string[]>('fleetgest_vehicles_expanded', []);
+  const expandedIds = useMemo(() => new Set(expandedArr), [expandedArr]);
+  const setExpandedIds = (updater: Set<string> | ((prev: Set<string>) => Set<string>)) =>
+    setExpandedArr((prev) => Array.from(typeof updater === 'function' ? updater(new Set(prev)) : updater));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlyId, setPrintOnlyId] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  // Page courante mémorisée : on revient sur la même page après un changement de menu.
+  const [currentPage, setCurrentPage] = usePersistedState<number>('fleetgest_vehicles_page', 1);
   const perPage = 8;
 
   // Impression d'une fiche véhicule individuelle :
@@ -150,6 +157,18 @@ export default function VehicleList() {
 
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated  = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  // Si la page mémorisée n'existe plus (suppressions, filtre plus restrictif), on se recale
+  // sur la dernière page valide. On attend que des véhicules soient chargés : au montage la
+  // liste Firestore est encore vide et on ne doit pas écraser la page mémorisée.
+  useEffect(() => {
+    if (filtered.length > 0 && currentPage > totalPages) setCurrentPage(totalPages);
+  }, [filtered.length, totalPages, currentPage, setCurrentPage]);
+
+  const changePage = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const expensesByVehicle = useMemo(() => {
     const map = new Map<string, number>();
@@ -469,27 +488,18 @@ export default function VehicleList() {
       </div>
 
       {/* ── Pagination ── */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <p className="text-sm text-slate-500">Page {currentPage} / {totalPages}</p>
-          <div className="flex gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}
-              className="flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-slate-100">
-              <ChevronLeftIcon className="h-4 w-4" /> Précédent
-            </button>
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}
-              className="flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-slate-100">
-              Suivant <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={changePage} />
 
       {/* ── Formulaire ── */}
       {showForm && (
         <VehicleForm
           vehicle={editVehicle}
-          onSave={() => { setShowForm(false); setEditVehicleId(null); setCurrentPage(1); }}
+          onSave={() => {
+            // Modification : on reste sur la page en cours. Ajout : le nouveau véhicule
+            // est placé en fin de liste, on va donc sur la dernière page pour le voir.
+            if (!editVehicleId) setCurrentPage(Math.max(1, Math.ceil((filtered.length + 1) / perPage)));
+            setShowForm(false); setEditVehicleId(null);
+          }}
           onClose={() => { setShowForm(false); setEditVehicleId(null); }}
         />
       )}

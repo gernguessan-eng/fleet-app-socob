@@ -12,6 +12,7 @@ import {
   CheckCircle2, AlertTriangle, X, Upload, Download, FileImage,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
+import DriverDetailModal from './DriverDetailModal';
 
 function fmtDate(d: string) {
   if (!d) return '—';
@@ -408,6 +409,8 @@ export default function DriverManagement() {
   // Modals
   const [showDriverForm, setShowDriverForm] = usePersistedState('fleetgest_draft_driver_form_open', false);
   const [editDriverId, setEditDriverId] = usePersistedState<string | null>('fleetgest_draft_driver_edit_id', null);
+  // Fiche chauffeur ouverte en boîte de dialogue (clic sur une carte)
+  const [viewDriverId, setViewDriverId] = useState<string | null>(null);
   const [showMissionForm, setShowMissionForm] = usePersistedState('fleetgest_draft_mission_form_open', false);
   const [editMissionId, setEditMissionId] = usePersistedState<string | null>('fleetgest_draft_mission_edit_id', null);
   const [showPlanningForm, setShowPlanningForm] = usePersistedState('fleetgest_draft_planning_form_open', false);
@@ -523,7 +526,7 @@ export default function DriverManagement() {
               const v = vehicleById.get(d.vehicule_affecte_id);
               const permisExpire = d.date_expiration_permis && new Date(d.date_expiration_permis) < new Date();
               return (
-                <div key={d.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+                <div key={d.id} onClick={() => setViewDriverId(d.id)} title="Voir la fiche complète" className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-300 transition-shadow">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white font-bold text-sm">
@@ -534,7 +537,7 @@ export default function DriverManagement() {
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUT_DRIVER_COLORS[d.statut]}`}>{d.statut}</span>
                       </div>
                     </div>
-                    <div className="flex gap-1 print:hidden">
+                    <div className="flex gap-1 print:hidden" onClick={e => e.stopPropagation()}>
                       <button onClick={() => { setEditDriverId(d.id); setShowDriverForm(true); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
                       <DeleteGuardButton module="chauffeurs" recordId={d.id} label={`le chauffeur ${d.prenom} ${d.nom}`} onDelete={() => deleteDriver(d.id)} className="p-1 text-slate-400 hover:text-red-600" />
                     </div>
@@ -548,7 +551,7 @@ export default function DriverManagement() {
                       Permis {d.categorie_permis} — expire {fmtDate(d.date_expiration_permis)}
                     </p>
                     {(d.permis_recto_url || d.permis_verso_url) && (
-                      <p className="flex items-center gap-2 print:hidden">
+                      <p className="flex items-center gap-2 print:hidden" onClick={e => e.stopPropagation()}>
                         <FileImage className="h-3 w-3 text-slate-400" />
                         <span>Copie du permis :</span>
                         {d.permis_recto_url && <a href={d.permis_recto_url} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-600 hover:underline">recto</a>}
@@ -561,6 +564,20 @@ export default function DriverManagement() {
               );
             })}
           </div>
+          {viewDriverId && (() => {
+            const vd = drivers.find(d => d.id === viewDriverId);
+            if (!vd) return null;
+            const vv = vehicleById.get(vd.vehicule_affecte_id);
+            return (
+              <DriverDetailModal
+                driver={vd}
+                vehicleLabel={vv ? `${vv.numero_immatriculation} — ${vv.marque}` : 'Aucun véhicule'}
+                missions={missions}
+                onEdit={() => { setViewDriverId(null); setEditDriverId(vd.id); setShowDriverForm(true); }}
+                onClose={() => setViewDriverId(null)}
+              />
+            );
+          })()}
           {showDriverForm && (
             <DriverFormModal
               driver={drivers.find(d => d.id === editDriverId)}

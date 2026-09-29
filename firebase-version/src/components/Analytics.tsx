@@ -53,7 +53,7 @@ function FileTextIcon({ className }: { className?: string }) {
 }
 
 export default function Analytics() {
-  const { vehicles, maintenanceRecords, expenseRecords, getDashboardStats } = useVehicles();
+  const { vehicles, maintenanceRecords, expenseRecords, immobilisations, getDashboardStats } = useVehicles();
   const stats = getDashboardStats();
 
   const avgInsuranceCost = vehicles.length > 0 ? Math.round(stats.totalInsuranceCost / vehicles.length) : 0;
@@ -92,10 +92,22 @@ export default function Analytics() {
   const ageData = stats.vehicleAgeDistribution;
 
   // Maintenance frequency
+  // Un passage en maintenance peut être saisi à 3 endroits de l'application ; on les
+  // compte tous :
+  //  - l'historique maintenance de la fiche véhicule ;
+  //  - les dépenses « Entretien » / « Réparation » saisies directement dans Dépenses
+  //    (on exclut les dépenses miroirs créées depuis l'historique, déjà comptées) ;
+  //  - les séjours en garage du menu Suivi des Immo-Garages.
   const maintFreqByVehicle = vehicles.map((v) => {
-    const freq = maintenanceRecords.filter((m) => m.vehicleId === v.id).length;
-    return { name: v.numero_immatriculation, frequence: freq };
-  }).sort((a, b) => b.frequence - a.frequence).slice(0, 10);
+    const historique = maintenanceRecords.filter((m) => m.vehicleId === v.id).length;
+    const depenses = expenseRecords.filter((e) =>
+      e.vehicleId === v.id &&
+      (e.categorie === 'Entretien' || e.categorie === 'Réparation') &&
+      !isMaintenanceDerivedExpense(e.id)
+    ).length;
+    const garage = immobilisations.filter((r) => r.vehicleId === v.id).length;
+    return { name: v.numero_immatriculation, historique, depenses, garage, frequence: historique + depenses + garage };
+  }).filter((v) => v.frequence > 0).sort((a, b) => b.frequence - a.frequence).slice(0, 10);
 
   // Total cost analysis
   // "maintenance" et "depenses" doivent former des ensembles SANS chevauchement pour ce
@@ -477,8 +489,11 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-              <Tooltip formatter={(value) => [`${value} intervention(s)`, 'Fréquence']} />
-              <Bar dataKey="frequence" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+              <Tooltip formatter={(value, name) => [`${value} intervention(s)`, name]} />
+              <Legend />
+              <Bar dataKey="historique" stackId="f" fill="#8b5cf6" name="Historique maintenance" />
+              <Bar dataKey="depenses" stackId="f" fill="#f59e0b" name="Dépenses entretien/réparation" />
+              <Bar dataKey="garage" stackId="f" fill="#06b6d4" name="Immo-garages" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

@@ -53,6 +53,7 @@ const emptyVehicle: Omit<Vehicle, 'id'> = {
   categorie_parc: 'Véhicule de service',
   zone_travail: '',
   photo_carte_grise: '',
+  photo_carte_grise_verso: '',
   photo_patente: '',
   photo_vignette: '',
   photo_carte_transport: '',
@@ -252,7 +253,8 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
               </div>
               {renderInput("N° Immatriculation", "numero_immatriculation")}
               {renderInput("N° Carte Grise", "numero_carte_grise")}
-              <div className="col-span-2">{renderDocumentUpload('Photo de la carte grise', 'photo_carte_grise')}</div>
+              <div>{renderDocumentUpload('Carte grise recto', 'photo_carte_grise')}</div>
+              <div>{renderDocumentUpload('Carte grise verso', 'photo_carte_grise_verso')}</div>
               {renderInput("Code parc entreprise", "code_parc_entreprise")}
               {renderInput("Propriétaire", "nom_proprietaire")}
               {renderInput("RDC", "rdc")}
