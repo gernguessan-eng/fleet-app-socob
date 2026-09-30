@@ -90,6 +90,7 @@ interface VehicleContextType {
   addSinistre: (record: SinistreRecord) => void;
   updateSinistre: (id: string, record: Partial<SinistreRecord>) => void;
   deleteSinistre: (id: string) => void;
+  importSinistres: (records: SinistreRecord[]) => void;
 }
 
 const VehicleContext = createContext<VehicleContextType | undefined>(undefined);
@@ -247,6 +248,10 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
 
   const deleteSinistre = useCallback((id: string) => {
     setSinistres((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  const importSinistres = useCallback((records: SinistreRecord[]) => {
+    setSinistres((prev) => [...prev, ...records]);
   }, []);
 
   const getDashboardStats = useCallback((): DashboardStats => {
@@ -421,6 +426,7 @@ export function VehicleProvider({ children }: { children: React.ReactNode }) {
       addSinistre,
       updateSinistre,
       deleteSinistre,
+      importSinistres,
     },
   }, children);
 }

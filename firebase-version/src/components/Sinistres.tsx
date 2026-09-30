@@ -6,9 +6,10 @@ import type { SinistreRecord } from '../types/sinistres';
 import { SINISTRE_TYPES, NATURE_DOMMAGE_OPTIONS, RESPONSABILITE_OPTIONS, COMMUNES_SUGGESTIONS } from '../types/sinistres';
 import { parseSpreadsheetFile, getCell, parseAmount, exportRowsToExcel } from '../utils/importExport';
 import SelectWithOther from './SelectWithOther';
+import DeleteGuardButton from './DeleteGuardButton';
 import {
   AlertTriangle, Plus, Printer, Search,
-  Trash2, Car, Shield, DollarSign, X, Eye, Upload, Download, Info, HeartPulse, Percent, MapPinned,
+  Car, Shield, DollarSign, X, Eye, Upload, Download, Info, HeartPulse, Percent, MapPinned,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 
@@ -95,11 +96,6 @@ export default function Sinistres() {
   }, [sinistres, vehicles]);
 
   const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#6366f1', '#8b5cf6', '#06b6d4', '#ec4899', '#94a3b8'];
-
-  const handleDelete = (id: string) => {
-    if (!confirm('Supprimer ce sinistre ?')) return;
-    deleteSinistre(id);
-  };
 
   const handleSave = (data: Omit<SinistreRecord, 'id'>, id?: string) => {
     if (id) updateSinistre(id, data);
@@ -325,7 +321,14 @@ export default function Sinistres() {
                         <div className="flex gap-1">
                           <button onClick={() => setDetailId(s.id)} className="p-1 text-slate-400 hover:text-blue-600" title="Détails"><Eye className="h-3.5 w-3.5" /></button>
                           <button onClick={() => { setEditSinistre(s); setShowForm(true); }} className="p-1 text-slate-400 hover:text-amber-600" title="Modifier"><Car className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => handleDelete(s.id)} className="p-1 text-slate-400 hover:text-red-600" title="Supprimer"><Trash2 className="h-3.5 w-3.5" /></button>
+                          <DeleteGuardButton
+                            module="sinistres"
+                            recordId={s.id}
+                            label={`le sinistre « ${s.type} » du ${s.date_sinistre}`}
+                            onDelete={() => deleteSinistre(s.id)}
+                            className="p-1 text-slate-400 hover:text-red-600"
+                            title="Supprimer"
+                          />
                         </div>
                       </td>
                     </tr>
