@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDrivers } from '../store/DriverStore';
 import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
@@ -411,6 +411,8 @@ export default function DriverManagement() {
   const [editDriverId, setEditDriverId] = usePersistedState<string | null>('fleetgest_draft_driver_edit_id', null);
   // Fiche chauffeur ouverte en boîte de dialogue (clic sur une carte)
   const [viewDriverId, setViewDriverId] = useState<string | null>(null);
+  // Case KPI ouverte en boîte de dialogue (Disponibles, En mission, En congé, Permis < 90j)
+  const [openStat, setOpenStat] = useState<null | 'Disponible' | 'En mission' | 'En congé' | 'permis'>(null);
   const [showMissionForm, setShowMissionForm] = usePersistedState('fleetgest_draft_mission_form_open', false);
   const [editMissionId, setEditMissionId] = usePersistedState<string | null>('fleetgest_draft_mission_edit_id', null);
   const [showPlanningForm, setShowPlanningForm] = usePersistedState('fleetgest_draft_planning_form_open', false);
@@ -486,12 +488,17 @@ export default function DriverManagement() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         {[
           { label: 'Total', value: driverStats.total, color: 'emerald' },
-          { label: 'Disponibles', value: driverStats.disponibles, color: 'green' },
-          { label: 'En mission', value: driverStats.enMission, color: 'blue' },
-          { label: 'En congé', value: driverStats.enConge, color: 'amber' },
-          { label: 'Permis < 90j', value: driverStats.permisExpirant, color: 'red' },
-        ].map(k => (
-          <div key={k.label} className={`rounded-xl border p-4 bg-${k.color}-50 border-${k.color}-200`}>
+          { label: 'Disponibles', value: driverStats.disponibles, color: 'green', key: 'Disponible' as const },
+          { label: 'En mission', value: driverStats.enMission, color: 'blue', key: 'En mission' as const },
+          { label: 'En congé', value: driverStats.enConge, color: 'amber', key: 'En congé' as const },
+          { label: 'Permis < 90j', value: driverStats.permisExpirant, color: 'red', key: 'permis' as const },
+        ].map((k: { label: string; value: number; color: string; key?: 'Disponible' | 'En mission' | 'En congé' | 'permis' }) => (
+          <div
+            key={k.label}
+            onClick={k.key ? () => setOpenStat(k.key!) : undefined}
+            title={k.key ? 'Cliquer pour voir le détail' : undefined}
+            className={`rounded-xl border p-4 bg-${k.color}-50 border-${k.color}-200 ${k.key ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+          >
             <p className="text-xs text-slate-500">{k.label}</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{k.value}</p>
           </div>
@@ -564,6 +571,17 @@ export default function DriverManagement() {
               );
             })}
           </div>
+          {openStat && (
+            <DriverStatModal
+              kind={openStat}
+              drivers={drivers}
+              missions={missions}
+              planning={planning}
+              vehicleLabel={(id) => { const v = vehicleById.get(id); return v ? `${v.numero_immatriculation} — ${v.marque}` : '—'; }}
+              onOpenDriver={(id) => { setOpenStat(null); setViewDriverId(id); }}
+              onClose={() => setOpenStat(null)}
+            />
+          )}
           {viewDriverId && (() => {
             const vd = drivers.find(d => d.id === viewDriverId);
             if (!vd) return null;
@@ -819,6 +837,108 @@ export default function DriverManagement() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Boîte de dialogue des cases KPI chauffeurs ────────────────────────────────
+
+function fmtD(d?: string) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function daysUntil(d: string) { return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000); }
+
+function DriverStatModal({ kind, drivers, missions, planning, vehicleLabel, onOpenDriver, onClose }: {
+  kind: 'Disponible' | 'En mission' | 'En congé' | 'permis';
+  drivers: Driver[];
+  missions: Mission[];
+  planning: PlanningEvent[];
+  vehicleLabel: (vehicleId: string) => string;
+  onOpenDriver: (id: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const isPermis = kind === 'permis';
+  const list = isPermis
+    ? drivers.filter(d => d.date_expiration_permis && daysUntil(d.date_expiration_permis) >= 0 && daysUntil(d.date_expiration_permis) <= 90)
+        .sort((a, b) => a.date_expiration_permis.localeCompare(b.date_expiration_permis))
+    : drivers.filter(d => d.statut === kind);
+  // Pour information : permis déjà expirés (non comptés dans la case « Permis < 90j »)
+  const expired = isPermis ? drivers.filter(d => d.date_expiration_permis && daysUntil(d.date_expiration_permis) < 0) : [];
+
+  const title = isPermis ? 'Permis expirant sous 90 jours' : kind === 'Disponible' ? 'Chauffeurs disponibles' : kind === 'En mission' ? 'Chauffeurs en mission' : 'Chauffeurs en congé';
+
+  // Colonne « détail » propre à chaque case
+  const detail = (d: Driver) => {
+    if (isPermis) {
+      const n = daysUntil(d.date_expiration_permis);
+      return <span className={n <= 30 ? 'font-semibold text-red-600' : 'text-amber-700'}>Expire le {fmtD(d.date_expiration_permis)} · dans {n} j</span>;
+    }
+    if (kind === 'En mission') {
+      const m = missions.filter(x => x.driverId === d.id && x.statut === 'En cours').sort((a, b) => (b.date_debut || '').localeCompare(a.date_debut || ''))[0]
+        || missions.filter(x => x.driverId === d.id && x.statut === 'Planifiée').sort((a, b) => (a.date_debut || '').localeCompare(b.date_debut || ''))[0];
+      if (!m) return <span className="text-slate-400">Aucune mission « En cours » enregistrée</span>;
+      return <span><b>{m.titre}</b> ({m.statut})<br />{[m.lieu_depart, m.lieu_arrivee].filter(Boolean).join(' → ') || '—'} · du {fmtD(m.date_debut)} au {fmtD(m.date_fin)}{m.vehicleId ? <><br />Véhicule : {vehicleLabel(m.vehicleId)}</> : null}</span>;
+    }
+    if (kind === 'En congé') {
+      const c = planning.filter(p => p.driverId === d.id && p.type === 'Congé' && p.date_fin >= today).sort((a, b) => a.date_debut.localeCompare(b.date_debut))[0];
+      if (!c) return <span className="text-slate-400">Aucune période de congé saisie dans la Planification</span>;
+      return <span>Du {fmtD(c.date_debut)} au {fmtD(c.date_fin)} · retour dans {Math.max(0, daysUntil(c.date_fin) + 1)} j{c.notes ? <><br />{c.notes}</> : null}</span>;
+    }
+    // Disponible : prochaine mission planifiée éventuelle
+    const next = missions.filter(x => x.driverId === d.id && x.statut === 'Planifiée' && x.date_debut >= today).sort((a, b) => a.date_debut.localeCompare(b.date_debut))[0];
+    return next ? <span>Prochaine mission : <b>{next.titre}</b> le {fmtD(next.date_debut)}</span> : <span className="text-slate-400">Aucune mission planifiée</span>;
+  };
+
+  const table = (rows: Driver[], showDetail = true) => (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full text-xs">
+        <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500">
+          <tr><th className="px-3 py-2">Chauffeur</th><th className="px-3 py-2">Téléphone</th><th className="px-3 py-2">Permis</th><th className="px-3 py-2">Véhicule affecté</th>{showDetail && <th className="px-3 py-2">Détail</th>}<th className="px-3 py-2"></th></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map(d => (
+            <tr key={d.id} className="align-top hover:bg-slate-50">
+              <td className="px-3 py-2"><p className="font-semibold text-slate-800">{d.prenom} {d.nom}</p><p className="text-slate-500">{d.statut}</p></td>
+              <td className="px-3 py-2 whitespace-nowrap">{d.telephone || '—'}</td>
+              <td className="px-3 py-2">{d.numero_permis || '—'}{d.categorie_permis ? ` (${d.categorie_permis})` : ''}</td>
+              <td className="px-3 py-2">{d.vehicule_affecte_id ? vehicleLabel(d.vehicule_affecte_id) : '—'}</td>
+              {showDetail && <td className="px-3 py-2">{detail(d)}</td>}
+              <td className="px-3 py-2"><button onClick={() => onOpenDriver(d.id)} className="whitespace-nowrap rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-white">Fiche ›</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden" onClick={onClose}>
+      <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">{title} — {list.length}</h3>
+            <p className="text-xs text-slate-500">{drivers.length > 0 ? ((list.length / drivers.length) * 100).toFixed(0) : 0} % des {drivers.length} chauffeur(s)</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700" title="Fermer"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-5 p-6">
+          {list.length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun chauffeur dans cette situation.</p> : table(list)}
+          {isPermis && expired.length > 0 && (
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700">Permis déjà expirés ({expired.length}) — non comptés dans la case</h4>
+              {table(expired.map(d => d), false)}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
