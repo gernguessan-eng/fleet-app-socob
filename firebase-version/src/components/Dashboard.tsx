@@ -1,11 +1,13 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useDrivers } from '../store/DriverStore';
+import type { Vehicle } from '../types';
 import { useVehicles } from '../store/VehicleStore';
 import { getVehicleMaintenanceForecast } from '../utils/maintenance';
 import IvoryCoastZoneMap from './IvoryCoastZoneMap';
 import {
   Car, CheckCircle2, Wrench, AlertTriangle, TrendingUp, Calendar,
-  DollarSign, Printer, Shield, Filter, ParkingCircle, Activity, Clock, Settings2,
+  DollarSign, Printer, Shield, Filter, ParkingCircle, Activity, Clock, Settings2, X, ExternalLink, ChevronRight,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList,
@@ -36,6 +38,102 @@ function fmtKPI(n: number) {
 
 function getAge(d: string) { if (!d) return 0; return Math.floor((Date.now() - new Date(d).getTime()) / (365.25 * 86400000)); }
 
+
+// ── Boîtes de dialogue des KPI cliquables ─────────────────────────────────────
+
+function fmtDateFr(d?: string) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function daysSince(d?: string) {
+  if (!d) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 86400000));
+}
+
+function KpiModal({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden" onClick={onClose}>
+      <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+            {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700" title="Fermer"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="space-y-5 p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+type ImmoLite = { id: string; vehicleId: string; garage: string; date_entree: string; date_sortie_prevue: string; travaux: string; statut: string; cout_estime: number };
+type SinLite = { id: string; vehicleId: string; date_sinistre: string; type: string; description: string; statut: string; cout_estime: number };
+
+/** Liste détaillée des véhicules d'un statut, avec la cause de l'indisponibilité. */
+function VehicleStatusTable({ list, immobilisations, sinistres, driverByVehicle, onOpen }: {
+  list: Vehicle[];
+  immobilisations: ImmoLite[];
+  sinistres: SinLite[];
+  driverByVehicle: Map<string, string>;
+  onOpen: (id: string) => void;
+}) {
+  if (list.length === 0) return <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun véhicule dans cette situation ✓</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full text-xs">
+        <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500">
+          <tr>
+            <th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Genre</th><th className="px-3 py-2">Affectation</th>
+            <th className="px-3 py-2">Chauffeur</th><th className="px-3 py-2">Km</th><th className="px-3 py-2">Cause / Détails</th><th className="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {list.map(v => {
+            const imm = immobilisations.filter(i => i.vehicleId === v.id && i.statut !== 'Terminé');
+            const sin = sinistres.filter(x => x.vehicleId === v.id && x.statut === 'En réparation');
+            return (
+              <tr key={v.id} className="align-top hover:bg-slate-50">
+                <td className="px-3 py-2"><p className="font-semibold text-slate-800">{v.numero_immatriculation}</p><p className="text-slate-500">{v.marque} {v.type_commercial}</p></td>
+                <td className="px-3 py-2">{v.genre || '—'}</td>
+                <td className="px-3 py-2">{v.affectation || '—'}</td>
+                <td className="px-3 py-2">{driverByVehicle.get(v.id) || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{(v.kilometrage || 0).toLocaleString('fr-FR')}</td>
+                <td className="px-3 py-2 space-y-1.5">
+                  {imm.map(i => (
+                    <div key={i.id} className="rounded-md bg-amber-50 px-2 py-1 text-amber-800">
+                      <p className="font-semibold">Garage : {i.garage || '—'} <span className="font-normal">({i.statut})</span></p>
+                      <p>Entrée le {fmtDateFr(i.date_entree)} — {daysSince(i.date_entree)} j immobilisé · sortie prévue {fmtDateFr(i.date_sortie_prevue)}</p>
+                      {i.travaux && <p>Travaux : {i.travaux}</p>}
+                      {i.cout_estime > 0 && <p>Coût estimé : {fmtKPI(i.cout_estime)}</p>}
+                    </div>
+                  ))}
+                  {sin.map(x => (
+                    <div key={x.id} className="rounded-md bg-red-50 px-2 py-1 text-red-800">
+                      <p className="font-semibold">Sinistre : {x.type} du {fmtDateFr(x.date_sinistre)} (en réparation)</p>
+                      {x.description && <p>{x.description}</p>}
+                      {x.cout_estime > 0 && <p>Coût estimé : {fmtKPI(x.cout_estime)}</p>}
+                    </div>
+                  ))}
+                  {imm.length === 0 && sin.length === 0 && <p className="text-slate-400">Statut saisi manuellement sur la fiche (aucune immobilisation ni sinistre en cours)</p>}
+                </td>
+                <td className="px-3 py-2">
+                  <button onClick={() => onOpen(v.id)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-white">Fiche <ChevronRight className="h-3 w-3" /></button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const FILTERS_KEY = 'parc_auto_dashboard_filters';
 
 function loadFilters(): { dept: string; from: string; to: string } {
@@ -47,6 +145,15 @@ function loadFilters(): { dept: string; from: string; to: string } {
 
 export default function Dashboard() {
   const { vehicles, expenseRecords, immobilisations, sinistres } = useVehicles();
+  const { drivers } = useDrivers();
+  const navigate = useNavigate();
+  // KPI dont la boîte de dialogue est ouverte
+  const [openKpi, setOpenKpi] = useState<null | 'maintenance' | 'hors-service' | 'immobilisation' | 'cout-op'>(null);
+  const driverByVehicle = useMemo(() => {
+    const m = new Map<string, string>();
+    drivers.forEach(d => { if (d.vehicule_affecte_id) m.set(d.vehicule_affecte_id, `${d.prenom} ${d.nom}`); });
+    return m;
+  }, [drivers]);
 
   const initialFilters = useMemo(loadFilters, []);
   const [filterDept, setFilterDept] = useState(initialFilters.dept);
@@ -126,13 +233,13 @@ export default function Dashboard() {
   // Taux de disponibilité = véhicules actifs / total * 100
   const tauxDisponibilite = fv.length > 0 ? ((activeVehiclesCount / fv.length) * 100).toFixed(1) : '0.0';
 
-  const kpiCards = [
+  const kpiCards: { key?: 'maintenance' | 'hors-service' | 'cout-op'; title: string; value: string; sub: string; icon: typeof Car; color: string; textColor: string; bgLight: string }[] = [
     { title: 'Total Véhicules', value: fv.length.toString(), sub: 'dans le parc', icon: Car, color: 'from-emerald-500 to-emerald-600', textColor: 'text-emerald-700', bgLight: 'bg-emerald-50' },
     { title: 'Véhicules Actifs', value: fv.filter(v => v.statut === 'Actif').length.toString(), sub: 'en service', icon: CheckCircle2, color: 'from-green-500 to-green-600', textColor: 'text-green-700', bgLight: 'bg-green-50' },
-    { title: 'En Maintenance', value: fv.filter(v => v.statut === 'En maintenance').length.toString(), sub: 'en atelier', icon: Wrench, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-700', bgLight: 'bg-amber-50' },
-    { title: 'Hors Service', value: fv.filter(v => v.statut === 'Hors service').length.toString(), sub: 'indisponibles', icon: AlertTriangle, color: 'from-red-500 to-red-600', textColor: 'text-red-700', bgLight: 'bg-red-50' },
+    { key: 'maintenance' as const, title: 'En Maintenance', value: fv.filter(v => v.statut === 'En maintenance').length.toString(), sub: 'en atelier', icon: Wrench, color: 'from-amber-500 to-amber-600', textColor: 'text-amber-700', bgLight: 'bg-amber-50' },
+    { key: 'hors-service' as const, title: 'Hors Service', value: fv.filter(v => v.statut === 'Hors service').length.toString(), sub: 'indisponibles', icon: AlertTriangle, color: 'from-red-500 to-red-600', textColor: 'text-red-700', bgLight: 'bg-red-50' },
     { title: 'Kilométrage Moyen', value: avgKm.toLocaleString('fr-FR') + ' km', sub: 'par véhicule', icon: TrendingUp, color: 'from-violet-500 to-violet-600', textColor: 'text-violet-700', bgLight: 'bg-violet-50' },
-    { title: 'Coût Opérationnel', value: formatNumber(totalOp), sub: 'total exploitation', icon: DollarSign, color: 'from-slate-700 to-slate-900', textColor: 'text-slate-700', bgLight: 'bg-slate-50' },
+    { key: 'cout-op' as const, title: 'Coût Opérationnel', value: formatNumber(totalOp), sub: 'total exploitation', icon: DollarSign, color: 'from-slate-700 to-slate-900', textColor: 'text-slate-700', bgLight: 'bg-slate-50' },
   ];
   // NB: "Taux d'Immobilisation" et "Taux de Disponibilité" ne sont plus dupliqués ici :
   // ils disposent de leur propre carte détaillée (avec barre de progression) juste en dessous.
@@ -252,7 +359,12 @@ export default function Dashboard() {
           const Icon = kpi.icon;
           const printHidden = hiddenKpis.has(kpi.title);
           return (
-            <div key={kpi.title} className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all ${printHidden ? 'print:hidden' : ''}`}>
+            <div
+              key={kpi.title}
+              onClick={kpi.key ? () => setOpenKpi(kpi.key!) : undefined}
+              title={kpi.key ? 'Cliquer pour voir le détail' : undefined}
+              className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all ${kpi.key ? 'cursor-pointer hover:border-emerald-300' : ''} ${printHidden ? 'print:hidden' : ''}`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 truncate">{kpi.title}</p>
@@ -295,7 +407,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${hiddenKpis.has("Taux d'Immobilisation") ? 'print:hidden' : ''}`}>
+        <div onClick={() => setOpenKpi('immobilisation')} title="Cliquer pour voir le détail" className={`cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:border-emerald-300 ${hiddenKpis.has("Taux d'Immobilisation") ? 'print:hidden' : ''}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-orange-500" />
@@ -324,7 +436,8 @@ export default function Dashboard() {
       {/* Répartitions flotte */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
         <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Type de véhicule') ? 'print:hidden' : ''}`}>
-          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Type de véhicule</h3>
+          <h3 className="text-sm font-bold text-slate-800">Flotte / Type de véhicule</h3>
+          <p className="mb-4 text-[11px] text-slate-400">Selon la case « Carrosserie » de la fiche véhicule</p>
           {fleetByType.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -347,7 +460,8 @@ export default function Dashboard() {
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
         <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Genre') ? 'print:hidden' : ''}`}>
-          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Genre</h3>
+          <h3 className="text-sm font-bold text-slate-800">Flotte / Genre</h3>
+          <p className="mb-4 text-[11px] text-slate-400">Selon la case « Genre » de la fiche véhicule</p>
           {fleetByGenre.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -523,6 +637,81 @@ export default function Dashboard() {
           return <Link key={v.id} to={`/vehicule/${v.id}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-amber-50 hover:border-amber-200"><div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-amber-500" /><div><p className="text-sm font-semibold text-slate-800">{v.numero_immatriculation}</p><p className="text-xs text-slate-500">{v.marque} {v.type_commercial}</p></div></div><div className="flex flex-wrap justify-end gap-1">{a.map(x => <span key={x} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{x}</span>)}</div></Link>;
         })}</div> : <p className="text-sm text-slate-400">Aucune alerte ✓</p>}
       </div>
+      {/* ── Boîtes de dialogue des KPI ── */}
+      {(openKpi === 'maintenance' || openKpi === 'hors-service') && (() => {
+        const statut = openKpi === 'maintenance' ? 'En maintenance' : 'Hors service';
+        const list = fv.filter(v => v.statut === statut);
+        return (
+          <KpiModal
+            title={`${openKpi === 'maintenance' ? 'En Maintenance' : 'Hors Service'} — ${list.length} véhicule(s)`}
+            subtitle={`${fv.length > 0 ? ((list.length / fv.length) * 100).toFixed(1) : '0.0'} % du parc${filterDept ? ` · département : ${filterDept}` : ''}`}
+            onClose={() => setOpenKpi(null)}
+          >
+            <VehicleStatusTable list={list} immobilisations={immobilisations as ImmoLite[]} sinistres={sinistres as SinLite[]} driverByVehicle={driverByVehicle} onOpen={id => navigate(`/vehicule/${id}`)} />
+          </KpiModal>
+        );
+      })()}
+
+      {openKpi === 'immobilisation' && (() => {
+        const enMaint = fv.filter(v => v.statut === 'En maintenance');
+        const hs = fv.filter(v => v.statut === 'Hors service');
+        return (
+          <KpiModal title={`Taux d'Immobilisation — ${tauxImmobilisation} %`} subtitle={`${immobilisedVehiclesCount} véhicule(s) immobilisé(s) sur ${fv.length}${filterDept ? ` · département : ${filterDept}` : ''}`} onClose={() => setOpenKpi(null)}>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { l: 'Parc total', v: fv.length, c: 'bg-slate-50 text-slate-800' },
+                { l: 'En maintenance', v: enMaint.length, c: 'bg-amber-50 text-amber-700' },
+                { l: 'Hors service', v: hs.length, c: 'bg-red-50 text-red-700' },
+                { l: 'Disponibles (actifs)', v: activeVehiclesCount, c: 'bg-emerald-50 text-emerald-700' },
+              ].map(k => <div key={k.l} className={`rounded-lg p-3 ${k.c}`}><p className="text-[11px] opacity-80">{k.l}</p><p className="text-xl font-bold">{k.v}</p></div>)}
+            </div>
+            <p className="text-xs text-slate-500">Calcul : (véhicules « En maintenance » + « Hors service ») ÷ parc total × 100. Séjours en garage enregistrés sur la période : {immobStats.enCours} en cours, {immobStats.termines} terminé(s), coût cumulé {fmtKPI(immobStats.coutTotal)}.</p>
+            <div><h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">En maintenance ({enMaint.length})</h4>
+              <VehicleStatusTable list={enMaint} immobilisations={immobilisations as ImmoLite[]} sinistres={sinistres as SinLite[]} driverByVehicle={driverByVehicle} onOpen={id => navigate(`/vehicule/${id}`)} /></div>
+            <div><h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-700">Hors service ({hs.length})</h4>
+              <VehicleStatusTable list={hs} immobilisations={immobilisations as ImmoLite[]} sinistres={sinistres as SinLite[]} driverByVehicle={driverByVehicle} onOpen={id => navigate(`/vehicule/${id}`)} /></div>
+            <button onClick={() => navigate('/immobilisations')} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /> Ouvrir le Suivi des Immo-Garages</button>
+          </KpiModal>
+        );
+      })()}
+
+      {openKpi === 'cout-op' && (() => {
+        const byCat = new Map<string, number>();
+        fe.forEach(e => byCat.set(e.categorie || 'Autre', (byCat.get(e.categorie || 'Autre') || 0) + e.montant));
+        const cats = Array.from(byCat.entries()).sort((a, b) => b[1] - a[1]);
+        // Ouvre le menu Dépenses avec la même période que le tableau de bord (les filtres
+        // du menu Dépenses sont mémorisés dans localStorage : on les positionne avant d'y aller).
+        const openExpenses = (categorie = '') => {
+          const set = (k: string, v: string) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+          set('fleetgest_filter_expenses_from', filterPeriodFrom);
+          set('fleetgest_filter_expenses_to', filterPeriodTo);
+          set('fleetgest_filter_expenses_category', categorie);
+          set('fleetgest_filter_expenses_vehicle', '');
+          set('fleetgest_filter_expenses_search', '');
+          navigate('/depenses');
+        };
+        return (
+          <KpiModal title={`Coût Opérationnel — ${fmtKPI(totalOp)}`} subtitle="Source du montant affiché : cliquez sur une ligne pour ouvrir le menu d'origine" onClose={() => setOpenKpi(null)}>
+            <div className="overflow-hidden rounded-lg border border-slate-200">
+              <button onClick={() => openExpenses()} className="flex w-full items-center justify-between bg-white px-4 py-3 text-left hover:bg-emerald-50">
+                <div><p className="text-sm font-semibold text-slate-800">Dépenses enregistrées ({fe.length})</p><p className="text-xs text-slate-500">Menu Dépenses{filterPeriodFrom || filterPeriodTo ? ` · du ${fmtDateFr(filterPeriodFrom) } au ${fmtDateFr(filterPeriodTo)}` : ' · toutes périodes'}</p></div>
+                <span className="flex items-center gap-2 text-sm font-bold text-slate-800">{fmtKPI(totalExp)} <ExternalLink className="h-4 w-4 text-emerald-600" /></span>
+              </button>
+              {cats.map(([c, v]) => (
+                <button key={c} onClick={() => openExpenses(c)} className="flex w-full items-center justify-between border-t border-slate-100 bg-slate-50/50 py-2 pl-8 pr-4 text-left text-xs hover:bg-emerald-50">
+                  <span className="text-slate-600">{c}</span><span className="flex items-center gap-2 font-medium text-slate-700">{fmtKPI(v)} <ChevronRight className="h-3 w-3" /></span>
+                </button>
+              ))}
+              <button onClick={() => navigate('/vehicules')} className="flex w-full items-center justify-between border-t border-slate-200 bg-white px-4 py-3 text-left hover:bg-emerald-50">
+                <div><p className="text-sm font-semibold text-slate-800">Assurances annuelles ({fv.filter(v => v.cout_assurance_annuel > 0).length} véhicule(s))</p><p className="text-xs text-slate-500">Menu Véhicules · case « Coût assurance annuel » de chaque fiche</p></div>
+                <span className="flex items-center gap-2 text-sm font-bold text-slate-800">{fmtKPI(totalIns)} <ExternalLink className="h-4 w-4 text-emerald-600" /></span>
+              </button>
+              <div className="flex items-center justify-between border-t-2 border-slate-300 bg-slate-100 px-4 py-3"><span className="text-sm font-bold text-slate-900">Total</span><span className="text-sm font-extrabold text-slate-900">{fmtKPI(totalOp)}</span></div>
+            </div>
+            {filterDept && <p className="text-xs text-amber-700">Filtre département « {filterDept} » actif : le menu Dépenses n'a pas ce filtre, il affichera donc les dépenses de tous les départements.</p>}
+          </KpiModal>
+        );
+      })()}
     </div>
   );
 }
