@@ -6,9 +6,10 @@ import type { PneumatiqueRecord, SeuilAlertePneu } from '../types/pneumatique';
 import { PNEU_DIMENSIONS, PNEU_MARQUES } from '../types/pneumatique';
 import {
   AlertTriangle, Plus, Printer, Search,
-  X, Gauge, DollarSign, AlertCircle, Upload, CheckSquare, Square, Ruler, RefreshCw, Pencil,
+  X, Gauge, DollarSign, AlertCircle, Upload, Download, CheckSquare, Square, Ruler, RefreshCw, Pencil,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
+import { exportRowsToExcel } from '../utils/excelIO';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 
 const SEUIL_DEFAUT: SeuilAlertePneu = { usureMinimale_mm: 1.6, kmMaxParJeu: 60000, coutBudgetMensuel: 2000000 };
@@ -100,6 +101,33 @@ export default function Pneumatique() {
     }).sort((a, b) => sortOrder === 'asc' ? a.date_montage.localeCompare(b.date_montage) : b.date_montage.localeCompare(a.date_montage));
   }, [pneusWithEtat, search, vehicleById, periodFrom, periodTo, usureEnabled, kmEnabled, seuil, sortOrder]);
 
+  // Export Excel de la liste affichée (recherche, période et critères d'alerte appliqués)
+  const exportExcel = () => {
+    const rows = filtered.map(p => {
+      const v = vehicleById.get(p.vehicleId);
+      const kmParcourus = p.km_actuel ? p.km_actuel - p.km_montage : 0;
+      return {
+        'Véhicule': v?.numero_immatriculation || 'Inconnu',
+        'Position': POSITION_LABEL[p.position] || p.position,
+        'Marque': p.marque,
+        'Modèle': p.modele,
+        'Dimension': p.dimension,
+        'Date de montage': p.date_montage,
+        'Km au montage': p.km_montage,
+        'Km actuel': p.km_actuel ?? '',
+        'Km parcourus': kmParcourus,
+        'Usure (mm)': p.usure_mm ?? '',
+        'Coût unitaire (FCFA)': p.cout_unitaire,
+        "Main d'œuvre (FCFA)": p.main_oeuvre || 0,
+        'Coût total (FCFA)': p.cout_unitaire + (p.main_oeuvre || 0),
+        'État': p.etat,
+        'Fournisseur': p.fournisseur,
+        'Observations': p.observations,
+      };
+    });
+    exportRowsToExcel(rows, `pneumatiques_${new Date().toISOString().slice(0, 10)}.xlsx`, 'Pneumatiques');
+  };
+
   const noCriteria = !usureEnabled && !kmEnabled;
 
   // Les cases KPI (en haut) reflètent toujours la FLOTTE ENTIÈRE, quels que soient les
@@ -165,6 +193,7 @@ export default function Pneumatique() {
         <div className="flex gap-2">
           <button onClick={() => { setEditPneuId(null); setShowForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter</button>
           <label className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50 cursor-pointer" title="Importer"><Upload className="h-4 w-4" /><input type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={() => {}} /></label>
+          <button onClick={exportExcel} disabled={filtered.length === 0} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40" title="Exporter la liste affichée vers Excel"><Download className="h-4 w-4" /> Exporter</button>
           <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"><Printer className="h-4 w-4" /> Imprimer</button>
         </div>
       </div>
