@@ -107,6 +107,7 @@ export default function DriverDetailModal({ driver, vehicleLabel, missions, onEd
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <section>
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Coordonnées & affectation</h4>
+              <Row icon={<IdCard className="h-4 w-4" />} label="Fonction" value={driver.fonction} />
               <Row icon={<Phone className="h-4 w-4" />} label="Téléphone" value={driver.telephone} />
               <Row icon={<Mail className="h-4 w-4" />} label="E-mail" value={driver.email} />
               <Row icon={<Car className="h-4 w-4" />} label="Véhicule affecté" value={vehicleLabel} />
