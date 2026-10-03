@@ -64,9 +64,11 @@ const CITIES = [
 
 type ZoneName = 'Nord' | 'Sud' | 'Est' | 'Centre' | 'Ouest';
 interface ZoneItem { name: ZoneName; value: number }
-interface Props { zoneDistribution: ZoneItem[]; totalVehicles: number }
+interface Props { zoneDistribution: ZoneItem[]; totalVehicles: number; onZoneClick?: (zone: ZoneName) => void }
 
-export default function IvoryCoastZoneMap({ zoneDistribution, totalVehicles }: Props) {
+export default function IvoryCoastZoneMap({ zoneDistribution, totalVehicles, onZoneClick }: Props) {
+  // Rend une zone cliquable (carte et légende) quand onZoneClick est fourni
+  const clickable = (name: ZoneName) => onZoneClick ? { onClick: () => onZoneClick(name), style: { cursor: 'pointer' } } : {};
   const maxVal = Math.max(...zoneDistribution.map(z => z.value), 1);
   const fillOpacity = (name: ZoneName) => {
     const v = zoneDistribution.find(z => z.name === name)?.value ?? 0;
@@ -89,11 +91,11 @@ export default function IvoryCoastZoneMap({ zoneDistribution, totalVehicles }: P
             </defs>
             <rect width={SVG_W} height={SVG_H} fill="#dbeafe" rx="12" />
 
-            <rect x="0" y="0" width={SVG_W} height={SY_NORD} fill={ZONE_COLOR.Nord} fillOpacity={fillOpacity('Nord')} clipPath="url(#civ-border)" />
-            <rect x="0" y={SY_SUD} width={SVG_W} height={SVG_H} fill={ZONE_COLOR.Sud} fillOpacity={fillOpacity('Sud')} clipPath="url(#civ-border)" />
-            <rect x="0" y={SY_NORD} width={SX_OUEST} height={SY_SUD - SY_NORD} fill={ZONE_COLOR.Ouest} fillOpacity={fillOpacity('Ouest')} clipPath="url(#civ-border)" />
-            <rect x={SX_EST} y={SY_NORD} width={SVG_W} height={SY_SUD - SY_NORD} fill={ZONE_COLOR.Est} fillOpacity={fillOpacity('Est')} clipPath="url(#civ-border)" />
-            <rect x={SX_OUEST} y={SY_NORD} width={SX_EST - SX_OUEST} height={SY_SUD - SY_NORD} fill={ZONE_COLOR.Centre} fillOpacity={fillOpacity('Centre')} clipPath="url(#civ-border)" />
+            <rect x="0" y="0" width={SVG_W} height={SY_NORD} fill={ZONE_COLOR.Nord} fillOpacity={fillOpacity('Nord')} clipPath="url(#civ-border)" {...clickable('Nord')}><title>Nord — cliquer pour le détail</title></rect>
+            <rect x="0" y={SY_SUD} width={SVG_W} height={SVG_H} fill={ZONE_COLOR.Sud} fillOpacity={fillOpacity('Sud')} clipPath="url(#civ-border)" {...clickable('Sud')}><title>Sud — cliquer pour le détail</title></rect>
+            <rect x="0" y={SY_NORD} width={SX_OUEST} height={SY_SUD - SY_NORD} fill={ZONE_COLOR.Ouest} fillOpacity={fillOpacity('Ouest')} clipPath="url(#civ-border)" {...clickable('Ouest')}><title>Ouest — cliquer pour le détail</title></rect>
+            <rect x={SX_EST} y={SY_NORD} width={SVG_W} height={SY_SUD - SY_NORD} fill={ZONE_COLOR.Est} fillOpacity={fillOpacity('Est')} clipPath="url(#civ-border)" {...clickable('Est')}><title>Est — cliquer pour le détail</title></rect>
+            <rect x={SX_OUEST} y={SY_NORD} width={SX_EST - SX_OUEST} height={SY_SUD - SY_NORD} fill={ZONE_COLOR.Centre} fillOpacity={fillOpacity('Centre')} clipPath="url(#civ-border)" {...clickable('Centre')}><title>Centre — cliquer pour le détail</title></rect>
 
             <path d={BORDER_PATH} fill="none" stroke="#0f172a" strokeWidth="2.2" strokeLinejoin="round" />
 
@@ -139,7 +141,7 @@ export default function IvoryCoastZoneMap({ zoneDistribution, totalVehicles }: P
               const pct  = totalVehicles > 0 ? ((zone.value / totalVehicles) * 100).toFixed(1) : '0';
               if (!meta) return null;
               return (
-                <div key={zone.name} className="rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-slate-100 transition-colors">
+                <div key={zone.name} {...clickable(zone.name)} className="rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-slate-100 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="h-4 w-4 rounded-full shadow" style={{ background: ZONE_COLOR[zone.name] }} />
