@@ -108,6 +108,7 @@ export interface Driver {
   id: string;
   nom: string;
   prenom: string;
+  fonction?: string;
   telephone: string;
   email: string;
   numero_permis: string;
