@@ -39,9 +39,10 @@ const EVENT_COLORS: Record<string, string> = {
 // ─────────────────────────────────────────────────────────
 // Formulaire générique pour chauffeurs
 // ─────────────────────────────────────────────────────────
-const emptyDriver: Omit<Driver, 'id'> = { nom: '', prenom: '', telephone: '', email: '', numero_permis: '', categorie_permis: 'B', date_expiration_permis: '', date_embauche: '', vehicule_affecte_id: '', statut: 'Disponible', photo_url: '', permis_recto_url: '', permis_verso_url: '', notes: '' };
+const emptyDriver: Omit<Driver, 'id'> = { nom: '', prenom: '', fonction: '', telephone: '', email: '', numero_permis: '', categorie_permis: 'B', date_expiration_permis: '', date_embauche: '', vehicule_affecte_id: '', statut: 'Disponible', photo_url: '', permis_recto_url: '', permis_verso_url: '', notes: '' };
 
-function DriverFormModal({ driver, vehicles, onSave, onClose }: {
+function DriverFormModal({ driver, vehicles, knownFonctions, onSave, onClose }: {
+  knownFonctions: string[];
   driver?: Driver; vehicles: { id: string; label: string }[]; onSave: (data: Omit<Driver, 'id'>) => void; onClose: () => void;
 }) {
   const draftKey = driver ? `fleetgest_draft_driver_edit_${driver.id}` : 'fleetgest_draft_driver_new';
@@ -113,12 +114,17 @@ function DriverFormModal({ driver, vehicles, onSave, onClose }: {
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button>
         </div>
         <form onSubmit={e => { e.preventDefault(); try { localStorage.removeItem(draftKey); } catch { /* ignore */ } onSave(f); }} className="grid grid-cols-2 gap-4 p-6">
-          {inp('Nom', 'nom')}{inp('Prénom', 'prenom')}{inp('Téléphone', 'telephone', 'tel')}{inp('Email', 'email', 'email')}
+          {inp('Nom', 'nom')}{inp('Prénom', 'prenom')}
+          <label className="col-span-2 block text-xs font-medium text-slate-600">Fonction
+            <input list="driver-fonctions" autoComplete="off" value={f.fonction || ''} onChange={e => up('fonction', e.target.value)} placeholder="Ex : Chauffeur de direction, Chauffeur-livreur…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <datalist id="driver-fonctions">{knownFonctions.map(fn => <option key={fn} value={fn} />)}</datalist>
+          </label>
+          {inp('Téléphone', 'telephone', 'tel')}{inp('Email', 'email', 'email')}
           {inp('N° Permis', 'numero_permis')}
           <label className="block text-xs font-medium text-slate-600">Catégorie permis
             <select value={f.categorie_permis} onChange={e => up('categorie_permis', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
               <option value="" disabled>Sélectionner la catégorie du permis...</option>
-              {['A', 'B', 'B-C', 'B-C-D', 'BCDE', 'ABCDE', 'C', 'D', 'E'].map(c => <option key={c} value={c}>{c}</option>)}
+              {['A', 'B', 'AB', 'B-C', 'B-C-D', 'BCDE', 'ABCDE', 'C', 'D', 'E'].map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
           {inp('Expiration permis', 'date_expiration_permis', 'date')}{inp("Date d'embauche", 'date_embauche', 'date')}
@@ -358,6 +364,7 @@ export default function DriverManagement() {
       id: 'dr-import-' + Date.now() + '-' + index,
       nom,
       prenom: getCell(row, ['prenom', 'prénom']),
+      fonction: getCell(row, ['fonction', 'poste']),
       telephone: getCell(row, ['telephone', 'téléphone', 'tel', 'phone']),
       email: getCell(row, ['email', 'e-mail', 'courriel']),
       numero_permis: getCell(row, ['numero_permis', 'n_permis', 'permis']),
@@ -393,7 +400,7 @@ export default function DriverManagement() {
     const rows = drivers.map((d) => {
       const v = vehicles.find((veh) => veh.id === d.vehicule_affecte_id);
       return {
-        'Nom': d.nom, 'Prénom': d.prenom, 'Téléphone': d.telephone, 'Email': d.email,
+        'Nom': d.nom, 'Prénom': d.prenom, 'Fonction': d.fonction || '', 'Téléphone': d.telephone, 'Email': d.email,
         'N° Permis': d.numero_permis, 'Catégorie Permis': d.categorie_permis, 'Expiration Permis': d.date_expiration_permis,
         'Date embauche': d.date_embauche, 'Véhicule affecté': v?.numero_immatriculation || '', 'Statut': d.statut, 'Notes': d.notes,
       };
@@ -412,6 +419,14 @@ export default function DriverManagement() {
   // Fiche chauffeur ouverte en boîte de dialogue (clic sur une carte)
   const [viewDriverId, setViewDriverId] = useState<string | null>(null);
   // Case KPI ouverte en boîte de dialogue (Disponibles, En mission, En congé, Permis < 90j)
+  // Fonctions proposées dans le formulaire : suggestions de base + fonctions déjà saisies
+  const knownFonctions = useMemo(() => {
+    const m = new Map<string, string>();
+    ['Chauffeur', 'Chauffeur de direction', 'Chauffeur-livreur', 'Chauffeur poids lourd', 'Coursier', 'Convoyeur']
+      .concat(drivers.map(d => d.fonction?.trim() || ''))
+      .forEach(fn => { if (fn && !m.has(fn.toLowerCase())) m.set(fn.toLowerCase(), fn); });
+    return Array.from(m.values()).sort((a, b) => a.localeCompare(b, 'fr'));
+  }, [drivers]);
   const [openStat, setOpenStat] = useState<null | 'Disponible' | 'En mission' | 'En congé' | 'permis'>(null);
   const [showMissionForm, setShowMissionForm] = usePersistedState('fleetgest_draft_mission_form_open', false);
   const [editMissionId, setEditMissionId] = usePersistedState<string | null>('fleetgest_draft_mission_edit_id', null);
@@ -541,6 +556,7 @@ export default function DriverManagement() {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-900">{d.prenom} {d.nom}</p>
+                        {d.fonction && <p className="text-[11px] text-slate-500">{d.fonction}</p>}
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUT_DRIVER_COLORS[d.statut]}`}>{d.statut}</span>
                       </div>
                     </div>
@@ -600,6 +616,7 @@ export default function DriverManagement() {
             <DriverFormModal
               driver={drivers.find(d => d.id === editDriverId)}
               vehicles={vehicleOptions}
+              knownFonctions={knownFonctions}
               onClose={() => { setShowDriverForm(false); setEditDriverId(null); }}
               onSave={data => {
                 const driverId = editDriverId || 'dr' + Date.now();
