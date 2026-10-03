@@ -134,6 +134,107 @@ function VehicleStatusTable({ list, immobilisations, sinistres, driverByVehicle,
   );
 }
 
+type ImmoFull = ImmoLite & { date_sortie_reelle: string; cout_final: number; observations: string };
+type SinFull = SinLite & { lieu: string; commune?: string; nature_dommage?: string; responsabilite?: string; cout_final?: number; assureur: string; numero_dossier: string; responsable: string };
+
+/** Tableau des véhicules d'une zone (statut, chauffeur, km, coûts sur la période). */
+function ZoneVehicleTable({ list, driverByVehicle, costByVehicle, sinCountByVehicle, onOpen }: {
+  list: Vehicle[]; driverByVehicle: Map<string, string>; costByVehicle: Map<string, number>; sinCountByVehicle: Map<string, number>; onOpen: (id: string) => void;
+}) {
+  if (list.length === 0) return <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun véhicule dans cette zone.</p>;
+  const STAT: Record<string, string> = { Actif: 'bg-green-100 text-green-700', 'En maintenance': 'bg-amber-100 text-amber-700', 'Hors service': 'bg-red-100 text-red-700' };
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full text-xs">
+        <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500">
+          <tr><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Genre</th><th className="px-3 py-2">Affectation</th><th className="px-3 py-2">Chauffeur</th><th className="px-3 py-2">Statut</th><th className="px-3 py-2 text-right">Km</th><th className="px-3 py-2 text-right">Dépenses</th><th className="px-3 py-2 text-right">Sinistres</th><th className="px-3 py-2"></th></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {list.map(v => (
+            <tr key={v.id} className="hover:bg-slate-50">
+              <td className="px-3 py-2"><p className="font-semibold text-slate-800">{v.numero_immatriculation}</p><p className="text-slate-500">{v.marque} {v.type_commercial}</p></td>
+              <td className="px-3 py-2">{v.genre || '—'}</td>
+              <td className="px-3 py-2">{v.affectation || '—'}</td>
+              <td className="px-3 py-2">{driverByVehicle.get(v.id) || '—'}</td>
+              <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STAT[v.statut] || 'bg-slate-100 text-slate-600'}`}>{v.statut}</span></td>
+              <td className="px-3 py-2 text-right whitespace-nowrap">{(v.kilometrage || 0).toLocaleString('fr-FR')}</td>
+              <td className="px-3 py-2 text-right whitespace-nowrap">{fmtKPI(costByVehicle.get(v.id) || 0)}</td>
+              <td className="px-3 py-2 text-right">{sinCountByVehicle.get(v.id) || 0}</td>
+              <td className="px-3 py-2"><button onClick={() => onOpen(v.id)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-white">Fiche <ChevronRight className="h-3 w-3" /></button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SinistreTable({ list, vehicleLabel }: { list: SinFull[]; vehicleLabel: (id: string) => string }) {
+  if (list.length === 0) return <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun sinistre.</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full text-xs">
+        <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500">
+          <tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Type / Nature</th><th className="px-3 py-2">Lieu</th><th className="px-3 py-2">Responsabilité</th><th className="px-3 py-2">Assureur / Dossier</th><th className="px-3 py-2 text-right">Coût</th><th className="px-3 py-2">Statut</th></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {[...list].sort((a, b) => (b.date_sinistre || '').localeCompare(a.date_sinistre || '')).map(x => (
+            <tr key={x.id} className="align-top hover:bg-slate-50">
+              <td className="px-3 py-2 whitespace-nowrap">{fmtDateFr(x.date_sinistre)}</td>
+              <td className="px-3 py-2 font-semibold text-slate-800">{vehicleLabel(x.vehicleId)}</td>
+              <td className="px-3 py-2"><p className="font-medium">{x.type}</p>{x.nature_dommage && <p className="text-slate-500">{x.nature_dommage}</p>}{x.description && <p className="text-slate-500">{x.description}</p>}</td>
+              <td className="px-3 py-2">{[x.lieu, x.commune].filter(Boolean).join(' — ') || '—'}</td>
+              <td className="px-3 py-2">{x.responsabilite || '—'}{x.responsable ? <p className="text-slate-500">{x.responsable}</p> : null}</td>
+              <td className="px-3 py-2">{x.assureur || '—'}{x.numero_dossier ? <p className="text-slate-500">N° {x.numero_dossier}</p> : null}</td>
+              <td className="px-3 py-2 text-right whitespace-nowrap">{fmtKPI(x.cout_final || x.cout_estime || 0)}{x.cout_final ? <p className="text-[10px] text-slate-400">final</p> : x.cout_estime ? <p className="text-[10px] text-slate-400">estimé</p> : null}</td>
+              <td className="px-3 py-2">{x.statut}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ImmoTable({ list, vehicleLabel }: { list: ImmoFull[]; vehicleLabel: (id: string) => string }) {
+  if (list.length === 0) return <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun dossier.</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="min-w-full text-xs">
+        <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500">
+          <tr><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Garage</th><th className="px-3 py-2">Entrée</th><th className="px-3 py-2">Sortie</th><th className="px-3 py-2 text-right">Durée</th><th className="px-3 py-2">Travaux</th><th className="px-3 py-2 text-right">Coût</th><th className="px-3 py-2">Statut</th></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {list.map(i => {
+            const fin = i.statut === 'Terminé' && i.date_sortie_reelle ? i.date_sortie_reelle : undefined;
+            const duree = i.date_entree ? Math.max(0, Math.round(((fin ? new Date(fin).getTime() : Date.now()) - new Date(i.date_entree).getTime()) / 86400000)) : 0;
+            return (
+              <tr key={i.id} className="align-top hover:bg-slate-50">
+                <td className="px-3 py-2 font-semibold text-slate-800">{vehicleLabel(i.vehicleId)}</td>
+                <td className="px-3 py-2">{i.garage || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{fmtDateFr(i.date_entree)}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{fin ? fmtDateFr(fin) : <span className="text-slate-500">prévue {fmtDateFr(i.date_sortie_prevue)}</span>}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">{duree} j</td>
+                <td className="px-3 py-2">{i.travaux || '—'}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">{fmtKPI(i.cout_final || i.cout_estime || 0)}{i.cout_final ? <p className="text-[10px] text-slate-400">final</p> : i.cout_estime ? <p className="text-[10px] text-slate-400">estimé</p> : null}</td>
+                <td className="px-3 py-2">{i.statut}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MiniStats({ items }: { items: { l: string; v: string | number; c: string }[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {items.map(k => <div key={k.l} className={`rounded-lg p-3 ${k.c}`}><p className="text-[11px] opacity-80">{k.l}</p><p className="text-lg font-bold">{k.v}</p></div>)}
+    </div>
+  );
+}
+
 const FILTERS_KEY = 'parc_auto_dashboard_filters';
 
 function loadFilters(): { dept: string; from: string; to: string } {
@@ -149,6 +250,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   // KPI dont la boîte de dialogue est ouverte
   const [openKpi, setOpenKpi] = useState<null | 'maintenance' | 'hors-service' | 'immobilisation' | 'cout-op'>(null);
+  // Détail ouvert depuis une zone (barre ou carte) ou une case Sinistres / Immobilisations
+  type DetailKind = 'zone-travail' | 'zone-carto' | 'sinistres' | 'immobilisations';
+  const [detail, setDetail] = useState<null | { kind: DetailKind; key: string }>(null);
   const driverByVehicle = useMemo(() => {
     const m = new Map<string, string>();
     drivers.forEach(d => { if (d.vehicule_affecte_id) m.set(d.vehicule_affecte_id, `${d.prenom} ${d.nom}`); });
@@ -205,7 +309,7 @@ export default function Dashboard() {
     const enCours = list.filter((i: any) => i.statut !== 'Terminé').length;
     const termines = list.filter((i: any) => i.statut === 'Terminé').length;
     const coutTotal = list.reduce((s: number, i: any) => s + (i.cout_final || i.cout_estime || 0), 0);
-    return { enCours, termines, total: list.length, coutTotal };
+    return { enCours, termines, total: list.length, coutTotal, list: list as ImmoFull[] };
   }, [immobilisations, filterDept, filterPeriodFrom, filterPeriodTo, fv]);
 
   // KPIs de base
@@ -499,7 +603,7 @@ export default function Dashboard() {
               {(() => {
                 const maxZoneValue = Math.max(...fleetByZone.map((z) => z.value));
                 return fleetByZone.map((z) => (
-                  <div key={z.name} className="flex items-center gap-2" title={`${z.name} : ${z.value} véhicule(s)`}>
+                  <div key={z.name} onClick={() => setDetail({ kind: 'zone-travail', key: z.name })} className="flex cursor-pointer items-center gap-2 rounded hover:bg-indigo-50" title={`${z.name} : ${z.value} véhicule(s) — cliquer pour le détail`}>
                     <span className="w-[110px] flex-shrink-0 truncate text-[10.5px] text-slate-600">{z.name}</span>
                     <div className="h-[18px] flex-1 rounded bg-slate-100">
                       <div
@@ -563,7 +667,7 @@ export default function Dashboard() {
       </div>
 
       <div className={hiddenKpis.has('Carte de répartition') ? 'print:hidden' : ''}>
-        <IvoryCoastZoneMap zoneDistribution={zoneDistribution} totalVehicles={fv.length} />
+        <IvoryCoastZoneMap zoneDistribution={zoneDistribution} totalVehicles={fv.length} onZoneClick={z => setDetail({ kind: 'zone-carto', key: z })} />
       </div>
 
       {/* Sinistres + Immobilisations KPI */}
@@ -571,10 +675,10 @@ export default function Dashboard() {
         <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Sinistres') ? 'print:hidden' : ''}`}>
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800"><Shield className="h-5 w-5 text-red-500" />Sinistres</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-red-50 p-3 border border-red-100"><p className="text-[10px] uppercase text-red-600">Ce mois</p><p className="mt-1 text-2xl font-bold text-red-700">{sinistreStats.moisCourant}</p></div>
-            <div className="rounded-lg bg-slate-50 p-3 border border-slate-200"><p className="text-[10px] uppercase text-slate-500">Total</p><p className="mt-1 text-2xl font-bold text-slate-900">{sinistreStats.total}</p></div>
-            <div className="rounded-lg bg-amber-50 p-3 border border-amber-100"><p className="text-[10px] uppercase text-amber-600">Taux / flotte</p><p className="mt-1 text-2xl font-bold text-amber-700">{sinistreStats.tauxFlotte}%</p></div>
-            <div className="rounded-lg bg-blue-50 p-3 border border-blue-100">
+            <div onClick={() => setDetail({ kind: 'sinistres', key: 'mois' })} title="Cliquer pour le détail" className="rounded-lg bg-red-50 p-3 border border-red-100 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-red-600">Ce mois</p><p className="mt-1 text-2xl font-bold text-red-700">{sinistreStats.moisCourant}</p></div>
+            <div onClick={() => setDetail({ kind: 'sinistres', key: 'total' })} title="Cliquer pour le détail" className="rounded-lg bg-slate-50 p-3 border border-slate-200 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-slate-500">Total</p><p className="mt-1 text-2xl font-bold text-slate-900">{sinistreStats.total}</p></div>
+            <div onClick={() => setDetail({ kind: 'sinistres', key: 'taux' })} title="Cliquer pour le détail" className="rounded-lg bg-amber-50 p-3 border border-amber-100 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-amber-600">Taux / flotte</p><p className="mt-1 text-2xl font-bold text-amber-700">{sinistreStats.tauxFlotte}%</p></div>
+            <div onClick={() => setDetail({ kind: 'sinistres', key: 'dept' })} title="Cliquer pour le détail" className="rounded-lg bg-blue-50 p-3 border border-blue-100 cursor-pointer hover:shadow-md transition-shadow">
               <p className="text-[10px] uppercase text-blue-600">Par département</p>
               <div className="mt-1 space-y-0.5">{sinistreStats.deptList.length > 0 ? sinistreStats.deptList.map(([dept, count]) => <div key={dept} className="flex items-center justify-between text-xs"><span className="text-slate-600 truncate max-w-[90px]">{dept}</span><span className="font-bold text-blue-700">{count}</span></div>) : <p className="text-xs text-slate-400">Aucun</p>}</div>
             </div>
@@ -583,10 +687,10 @@ export default function Dashboard() {
         <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Immobilisations') ? 'print:hidden' : ''}`}>
           <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800"><ParkingCircle className="h-5 w-5 text-amber-500" />Immobilisations</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-amber-50 p-3 border border-amber-100"><p className="text-[10px] uppercase text-amber-600">En cours</p><p className="mt-1 text-2xl font-bold text-amber-700">{immobStats.enCours}</p></div>
-            <div className="rounded-lg bg-green-50 p-3 border border-green-100"><p className="text-[10px] uppercase text-green-600">Terminés</p><p className="mt-1 text-2xl font-bold text-green-700">{immobStats.termines}</p></div>
-            <div className="rounded-lg bg-slate-50 p-3 border border-slate-200"><p className="text-[10px] uppercase text-slate-500">Total dossiers</p><p className="mt-1 text-2xl font-bold text-slate-900">{immobStats.total}</p></div>
-            <div className="rounded-lg bg-indigo-50 p-3 border border-indigo-100"><p className="text-[10px] uppercase text-indigo-600">Coût total</p><p className="mt-1 text-lg font-bold text-indigo-700">{fmtKPI(immobStats.coutTotal)}</p></div>
+            <div onClick={() => setDetail({ kind: 'immobilisations', key: 'en-cours' })} title="Cliquer pour le détail" className="rounded-lg bg-amber-50 p-3 border border-amber-100 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-amber-600">En cours</p><p className="mt-1 text-2xl font-bold text-amber-700">{immobStats.enCours}</p></div>
+            <div onClick={() => setDetail({ kind: 'immobilisations', key: 'termines' })} title="Cliquer pour le détail" className="rounded-lg bg-green-50 p-3 border border-green-100 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-green-600">Terminés</p><p className="mt-1 text-2xl font-bold text-green-700">{immobStats.termines}</p></div>
+            <div onClick={() => setDetail({ kind: 'immobilisations', key: 'total' })} title="Cliquer pour le détail" className="rounded-lg bg-slate-50 p-3 border border-slate-200 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-slate-500">Total dossiers</p><p className="mt-1 text-2xl font-bold text-slate-900">{immobStats.total}</p></div>
+            <div onClick={() => setDetail({ kind: 'immobilisations', key: 'cout' })} title="Cliquer pour le détail" className="rounded-lg bg-indigo-50 p-3 border border-indigo-100 cursor-pointer hover:shadow-md transition-shadow"><p className="text-[10px] uppercase text-indigo-600">Coût total</p><p className="mt-1 text-lg font-bold text-indigo-700">{fmtKPI(immobStats.coutTotal)}</p></div>
           </div>
         </div>
       </div>
@@ -637,6 +741,138 @@ export default function Dashboard() {
           return <Link key={v.id} to={`/vehicule/${v.id}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-amber-50 hover:border-amber-200"><div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-amber-500" /><div><p className="text-sm font-semibold text-slate-800">{v.numero_immatriculation}</p><p className="text-xs text-slate-500">{v.marque} {v.type_commercial}</p></div></div><div className="flex flex-wrap justify-end gap-1">{a.map(x => <span key={x} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{x}</span>)}</div></Link>;
         })}</div> : <p className="text-sm text-slate-400">Aucune alerte ✓</p>}
       </div>
+      {/* ── Détail d'une zone (Flotte / Zone de travail ou Cartographie) ── */}
+      {detail && (detail.kind === 'zone-travail' || detail.kind === 'zone-carto') && (() => {
+        const isCarto = detail.kind === 'zone-carto';
+        const list = fv.filter(v => isCarto ? v.zone_affectation === detail.key : (v.zone_travail || 'Non renseigné') === detail.key);
+        const ids = new Set(list.map(v => v.id));
+        const costByVehicle = new Map<string, number>();
+        fe.forEach(e => { if (ids.has(e.vehicleId)) costByVehicle.set(e.vehicleId, (costByVehicle.get(e.vehicleId) || 0) + e.montant); });
+        const sinCountByVehicle = new Map<string, number>();
+        filteredSinistres.forEach((x: any) => { if (ids.has(x.vehicleId)) sinCountByVehicle.set(x.vehicleId, (sinCountByVehicle.get(x.vehicleId) || 0) + 1); });
+        const totalCost = Array.from(costByVehicle.values()).reduce((a, b) => a + b, 0);
+        const nbSin = Array.from(sinCountByVehicle.values()).reduce((a, b) => a + b, 0);
+        return (
+          <KpiModal
+            title={`${isCarto ? 'Zone' : 'Zone de travail'} « ${detail.key} » — ${list.length} véhicule(s)`}
+            subtitle={`${fv.length > 0 ? ((list.length / fv.length) * 100).toFixed(1) : '0.0'} % du parc · ${isCarto ? 'case « Zone d\'affectation »' : 'case « Zone de travail »'} de la fiche véhicule${filterDept ? ` · département : ${filterDept}` : ''}`}
+            onClose={() => setDetail(null)}
+          >
+            <MiniStats items={[
+              { l: 'Actifs', v: list.filter(v => v.statut === 'Actif').length, c: 'bg-emerald-50 text-emerald-700' },
+              { l: 'En maintenance / HS', v: list.filter(v => v.statut === 'En maintenance' || v.statut === 'Hors service').length, c: 'bg-amber-50 text-amber-700' },
+              { l: 'Dépenses (période)', v: fmtKPI(totalCost), c: 'bg-slate-50 text-slate-800' },
+              { l: 'Sinistres (période)', v: nbSin, c: 'bg-red-50 text-red-700' },
+            ]} />
+            <ZoneVehicleTable list={list} driverByVehicle={driverByVehicle} costByVehicle={costByVehicle} sinCountByVehicle={sinCountByVehicle} onOpen={id => navigate(`/vehicule/${id}`)} />
+          </KpiModal>
+        );
+      })()}
+
+      {/* ── Détail d'une case Sinistres ── */}
+      {detail?.kind === 'sinistres' && (() => {
+        const all = filteredSinistres as SinFull[];
+        const now = new Date();
+        const vehicleLabel = (id: string) => vehicles.find(v => v.id === id)?.numero_immatriculation || '—';
+        const deptOf = (x: SinFull) => vehicles.find(v => v.id === x.vehicleId)?.affectation || 'Non affecté';
+        const coutOf = (l: SinFull[]) => l.reduce((a, x) => a + (x.cout_final || x.cout_estime || 0), 0);
+        const periode = filterPeriodFrom || filterPeriodTo ? `du ${fmtDateFr(filterPeriodFrom)} au ${fmtDateFr(filterPeriodTo)}` : 'toutes périodes';
+        let title = ''; let subtitle = ''; let body: React.ReactNode = null;
+        if (detail.key === 'mois' || detail.key === 'total') {
+          const list = detail.key === 'mois' ? all.filter(x => { const d = new Date(x.date_sinistre); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }) : all;
+          title = `${detail.key === 'mois' ? 'Sinistres du mois' : 'Tous les sinistres'} — ${list.length}`;
+          subtitle = detail.key === 'mois' ? now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : periode;
+          const parStatut = new Map<string, number>(); list.forEach(x => parStatut.set(x.statut, (parStatut.get(x.statut) || 0) + 1));
+          body = <>
+            <MiniStats items={[
+              { l: 'Sinistres', v: list.length, c: 'bg-red-50 text-red-700' },
+              { l: 'Véhicules touchés', v: new Set(list.map(x => x.vehicleId)).size, c: 'bg-slate-50 text-slate-800' },
+              { l: 'Coût cumulé', v: fmtKPI(coutOf(list)), c: 'bg-indigo-50 text-indigo-700' },
+              { l: 'Par statut', v: Array.from(parStatut.entries()).map(([k, v]) => `${k} : ${v}`).join(' · ') || '—', c: 'bg-amber-50 text-amber-700 [&_p:last-child]:text-xs' },
+            ]} />
+            <SinistreTable list={list} vehicleLabel={vehicleLabel} />
+          </>;
+        } else if (detail.key === 'taux') {
+          const byVeh = new Map<string, SinFull[]>(); all.forEach(x => byVeh.set(x.vehicleId, [...(byVeh.get(x.vehicleId) || []), x]));
+          const rows = Array.from(byVeh.entries()).sort((a, b) => b[1].length - a[1].length);
+          title = `Taux de sinistralité — ${sinistreStats.tauxFlotte} %`;
+          subtitle = `Calcul : nombre de sinistres (${all.length}) ÷ nombre de véhicules (${fv.length}) × 100 · ${periode}`;
+          body = <>
+            <MiniStats items={[
+              { l: 'Sinistres', v: all.length, c: 'bg-red-50 text-red-700' },
+              { l: 'Parc', v: fv.length, c: 'bg-slate-50 text-slate-800' },
+              { l: 'Véhicules sinistrés', v: byVeh.size, c: 'bg-amber-50 text-amber-700' },
+              { l: 'Véhicules sans sinistre', v: Math.max(0, fv.length - byVeh.size), c: 'bg-emerald-50 text-emerald-700' },
+            ]} />
+            {rows.length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun sinistre.</p> : (
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Affectation</th><th className="px-3 py-2 text-right">Nb sinistres</th><th className="px-3 py-2">Dernier sinistre</th><th className="px-3 py-2 text-right">Coût cumulé</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rows.map(([vid, l]) => { const last = [...l].sort((a, b) => b.date_sinistre.localeCompare(a.date_sinistre))[0]; return (
+                      <tr key={vid} className="hover:bg-slate-50"><td className="px-3 py-2 font-semibold">{vehicleLabel(vid)}</td><td className="px-3 py-2">{deptOf(l[0])}</td><td className="px-3 py-2 text-right font-bold">{l.length}</td><td className="px-3 py-2">{last.type} — {fmtDateFr(last.date_sinistre)}</td><td className="px-3 py-2 text-right">{fmtKPI(coutOf(l))}</td></tr>
+                    ); })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>;
+        } else {
+          const byDept = new Map<string, SinFull[]>(); all.forEach(x => byDept.set(deptOf(x), [...(byDept.get(deptOf(x)) || []), x]));
+          const depts = Array.from(byDept.entries()).sort((a, b) => b[1].length - a[1].length);
+          title = `Sinistres par département — ${depts.length} département(s)`;
+          subtitle = `${all.length} sinistre(s) · ${periode}`;
+          body = depts.length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun sinistre.</p> : <>{depts.map(([d, l]) => (
+            <div key={d}>
+              <h4 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-blue-700"><span>{d} — {l.length} sinistre(s)</span><span className="normal-case text-slate-600">{fmtKPI(coutOf(l))}</span></h4>
+              <SinistreTable list={l} vehicleLabel={vehicleLabel} />
+            </div>
+          ))}</>;
+        }
+        return (
+          <KpiModal title={title} subtitle={subtitle} onClose={() => setDetail(null)}>
+            {body}
+            <button onClick={() => navigate('/sinistres')} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /> Ouvrir le menu Sinistres</button>
+          </KpiModal>
+        );
+      })()}
+
+      {/* ── Détail d'une case Immobilisations ── */}
+      {detail?.kind === 'immobilisations' && (() => {
+        const all = immobStats.list;
+        const vehicleLabel = (id: string) => vehicles.find(v => v.id === id)?.numero_immatriculation || '—';
+        const coutOf = (l: ImmoFull[]) => l.reduce((a, i) => a + (i.cout_final || i.cout_estime || 0), 0);
+        const periode = filterPeriodFrom || filterPeriodTo ? `entrées du ${fmtDateFr(filterPeriodFrom)} au ${fmtDateFr(filterPeriodTo)}` : 'toutes périodes';
+        const list = detail.key === 'en-cours' ? all.filter(i => i.statut !== 'Terminé') : detail.key === 'termines' ? all.filter(i => i.statut === 'Terminé') : all;
+        const sorted = detail.key === 'cout'
+          ? [...list].sort((a, b) => (b.cout_final || b.cout_estime || 0) - (a.cout_final || a.cout_estime || 0))
+          : [...list].sort((a, b) => (b.date_entree || '').localeCompare(a.date_entree || ''));
+        const titles: Record<string, string> = { 'en-cours': 'Immobilisations en cours', termines: 'Immobilisations terminées', total: 'Tous les dossiers d\'immobilisation', cout: 'Coût des immobilisations' };
+        const byGarage = new Map<string, { n: number; c: number }>();
+        list.forEach(i => { const g = i.garage || 'Non renseigné'; const cur = byGarage.get(g) || { n: 0, c: 0 }; byGarage.set(g, { n: cur.n + 1, c: cur.c + (i.cout_final || i.cout_estime || 0) }); });
+        const durees = list.filter(i => i.statut === 'Terminé' && i.date_sortie_reelle && i.date_entree).map(i => Math.max(0, (new Date(i.date_sortie_reelle).getTime() - new Date(i.date_entree).getTime()) / 86400000));
+        const dureeMoy = durees.length ? Math.round(durees.reduce((a, b) => a + b, 0) / durees.length) : 0;
+        return (
+          <KpiModal title={`${titles[detail.key]} — ${detail.key === 'cout' ? fmtKPI(coutOf(list)) : list.length}`} subtitle={`${periode}${filterDept ? ` · département : ${filterDept}` : ''} · coût = coût final, ou coût estimé si pas encore de coût final`} onClose={() => setDetail(null)}>
+            <MiniStats items={[
+              { l: 'Dossiers', v: list.length, c: 'bg-slate-50 text-slate-800' },
+              { l: 'Véhicules concernés', v: new Set(list.map(i => i.vehicleId)).size, c: 'bg-amber-50 text-amber-700' },
+              { l: 'Coût cumulé', v: fmtKPI(coutOf(list)), c: 'bg-indigo-50 text-indigo-700' },
+              { l: 'Durée moyenne (terminés)', v: durees.length ? `${dureeMoy} j` : '—', c: 'bg-green-50 text-green-700' },
+            ]} />
+            {byGarage.size > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {Array.from(byGarage.entries()).sort((a, b) => b[1].c - a[1].c).map(([g, x]) => (
+                  <span key={g} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-700"><b>{g}</b> · {x.n} dossier(s) · {fmtKPI(x.c)}</span>
+                ))}
+              </div>
+            )}
+            <ImmoTable list={sorted} vehicleLabel={vehicleLabel} />
+            <button onClick={() => navigate('/immobilisations')} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /> Ouvrir le Suivi des Immo-Garages</button>
+          </KpiModal>
+        );
+      })()}
+
       {/* ── Boîtes de dialogue des KPI ── */}
       {(openKpi === 'maintenance' || openKpi === 'hors-service') && (() => {
         const statut = openKpi === 'maintenance' ? 'En maintenance' : 'Hors service';
