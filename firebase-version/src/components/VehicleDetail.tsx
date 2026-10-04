@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVehicles } from '../store/VehicleStore';
-import { ArrowLeft, Car, MapPin, User, Gauge, Calendar, Shield, FileText, Wrench, AlertCircle, DollarSign, Info, Hash, Fuel, Receipt } from 'lucide-react';
+import { ArrowLeft, Car, MapPin, User, Gauge, Calendar, Shield, FileText, Wrench, AlertCircle, DollarSign, Info, Hash, Fuel, Receipt, Phone } from 'lucide-react';
 import type { MaintenanceRecord } from '../types';
 import { isMaintenanceDerivedExpense } from '../utils/maintenance';
 import DeleteGuardButton from './DeleteGuardButton';
@@ -220,6 +220,8 @@ export default function VehicleDetail() {
                 {infoRow(<User className="h-4 w-4" />, "Conducteur", vehicle.conducteur || '—')}
                 {infoRow(<MapPin className="h-4 w-4" />, "Affectation", vehicle.affectation || '—')}
                 {infoRow(<Car className="h-4 w-4" />, "Catégorie de parc", vehicle.categorie_parc || '—')}
+                {infoRow(<Fuel className="h-4 w-4" />, "Consommation aux 100 km", vehicle.consommation_100km ? `${vehicle.consommation_100km.toLocaleString('fr-FR')} L / 100 km` : '—')}
+                {infoRow(<Phone className="h-4 w-4" />, "Téléphone balise GPS", vehicle.telephone_gps || '—')}
                 {vehicle.observations && infoRow(<AlertCircle className="h-4 w-4" />, "Observations", vehicle.observations)}
               </>
             )}
