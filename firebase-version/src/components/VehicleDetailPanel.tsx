@@ -5,6 +5,7 @@ import type { Vehicle, MaintenanceRecord } from '../types';
 import {
   Car, MapPin, User, Gauge, Calendar, Shield, FileText,
   Wrench, AlertCircle, DollarSign, Info, Hash, Fuel, Receipt, Camera, Upload, X,
+  Phone,
 } from 'lucide-react';
 import { getVehicleMaintenanceForecast, isMaintenanceDerivedExpense } from '../utils/maintenance';
 import { uploadVehicleImage, validateImageFile } from '../utils/uploadImage';
@@ -294,8 +295,7 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
           <Row icon={<Info className="h-4 w-4" />}     label="PTAC"               value={vehicle.ptac_kg ? vehicle.ptac_kg + ' Kg' : '—'} />
         </Card>
 
-        {/* Carte Grise Verso + Gestion */}
-        <div className="space-y-4">
+        {/* Carte Grise Verso et Gestion du Parc : côte à côte (colonnes 2 et 3) */}
           <Card title={<><FileText className="h-4 w-4" /> Carte Grise (Verso)</>}>
             <Row icon={<Hash className="h-4 w-4" />} label="N° VIN/Chassis"         value={vehicle.vin_chassis || '—'} />
             <Row icon={<Hash className="h-4 w-4" />} label="N° Moteur"              value={vehicle.numero_moteur || '—'} />
@@ -325,11 +325,12 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
             <Row icon={<MapPin className="h-4 w-4" />}  label="Zone d'affectation"   value={vehicle.zone_affectation || '—'} />
             <Row icon={<MapPin className="h-4 w-4" />}  label="Zone de travail"      value={vehicle.zone_travail || '—'} />
             <Row icon={<Car className="h-4 w-4" />}     label="Catégorie de parc"    value={vehicle.categorie_parc || '—'} />
+            <Row icon={<Fuel className="h-4 w-4" />}    label="Consommation aux 100 km" value={vehicle.consommation_100km ? `${vehicle.consommation_100km.toLocaleString('fr-FR')} L / 100 km` : '—'} />
+            <Row icon={<Phone className="h-4 w-4" />}   label="Téléphone balise GPS" value={vehicle.telephone_gps || '—'} />
             {vehicle.observations && (
               <Row icon={<AlertCircle className="h-4 w-4" />} label="Observations" value={vehicle.observations} />
             )}
           </Card>
-        </div>
 
         {/* Documents administratifs */}
         <div className="lg:col-span-3">
