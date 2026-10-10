@@ -9,6 +9,7 @@ import {
   X, Gauge, DollarSign, AlertCircle, Upload, Download, CheckSquare, Square, Ruler, RefreshCw, Pencil,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
+import SelectWithOther from './SelectWithOther';
 import { exportRowsToExcel } from '../utils/excelIO';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 
@@ -100,6 +101,16 @@ export default function Pneumatique() {
       return matchSearch && matchFrom && matchTo && matchUsure && matchKm;
     }).sort((a, b) => sortOrder === 'asc' ? a.date_montage.localeCompare(b.date_montage) : b.date_montage.localeCompare(a.date_montage));
   }, [pneusWithEtat, search, vehicleById, periodFrom, periodTo, usureEnabled, kmEnabled, seuil, sortOrder]);
+
+  // Valeurs déjà saisies (marque, dimension, modèle, fournisseur) : reproposées dans le formulaire
+  const knownMarques = useMemo(() => mergeSuggestions(PNEU_MARQUES, pneus.map(p => p.marque)), [pneus]);
+  const knownDimensions = useMemo(() => mergeSuggestions(PNEU_DIMENSIONS, pneus.map(p => p.dimension)), [pneus]);
+  const knownFournisseurs = useMemo(() => mergeSuggestions([], pneus.map(p => p.fournisseur)), [pneus]);
+  const knownModeles = useMemo(() => {
+    const seen = new Set<string>(); const out: { marque: string; modele: string }[] = [];
+    pneus.forEach(p => { const mo = (p.modele || '').trim(); if (!mo) return; const k = `${(p.marque || '').trim().toLowerCase()}|${mo.toLowerCase()}`; if (!seen.has(k)) { seen.add(k); out.push({ marque: p.marque || '', modele: mo }); } });
+    return out;
+  }, [pneus]);
 
   // Export Excel de la liste affichée (recherche, période et critères d'alerte appliqués)
   const exportExcel = () => {
@@ -400,12 +411,20 @@ export default function Pneumatique() {
         </div>
       </div>
 
-      {showForm && <PneuFormModal pneu={pneus.find(p => p.id === editPneuId)} vehicles={vehicles} latestKmByVehicle={latestKmByVehicle} onSave={handleSave} onClose={() => { setShowForm(false); setEditPneuId(null); }} />}
+      {showForm && <PneuFormModal pneu={pneus.find(p => p.id === editPneuId)} vehicles={vehicles} latestKmByVehicle={latestKmByVehicle} knownMarques={knownMarques} knownDimensions={knownDimensions} knownFournisseurs={knownFournisseurs} knownModeles={knownModeles} onSave={handleSave} onClose={() => { setShowForm(false); setEditPneuId(null); }} />}
     </div>
   );
 }
 
 // ── Helpers ──
+/** Liste de base + valeurs déjà saisies (sans doublon, insensible à la casse, sans « Autre »). */
+function mergeSuggestions(base: string[], used: string[]): string[] {
+  const baseMap = new Map<string, string>();
+  base.forEach(b => { const t = b.trim(); const k = t.toLowerCase(); if (t && k !== 'autre' && !baseMap.has(k)) baseMap.set(k, t); });
+  const extra = new Map<string, string>();
+  used.forEach(u => { const t = (u || '').trim(); const k = t.toLowerCase(); if (t && k !== 'autre' && !baseMap.has(k) && !extra.has(k)) extra.set(k, t); });
+  return [...Array.from(baseMap.values()), ...Array.from(extra.values()).sort((a, b) => a.localeCompare(b, 'fr'))];
+}
 function formatMoney(n: number) { return n.toLocaleString('fr-FR') + ' FCFA'; }
 function coutParMarque(pneus: PneumatiqueRecord[]) {
   const map = new Map<string, number>();
@@ -418,11 +437,16 @@ interface PneuFormProps {
   pneu?: PneumatiqueRecord;
   vehicles: { id: string; numero_immatriculation: string }[];
   latestKmByVehicle: Map<string, number>;
+  /** Valeurs déjà saisies dans le module, reproposées dans le formulaire */
+  knownMarques: string[];
+  knownDimensions: string[];
+  knownFournisseurs: string[];
+  knownModeles: { marque: string; modele: string }[];
   onSave: (data: Omit<PneumatiqueRecord, 'id'>, id?: string) => void;
   onClose: () => void;
 }
 
-function PneuFormModal({ pneu, vehicles, latestKmByVehicle, onSave, onClose }: PneuFormProps) {
+function PneuFormModal({ pneu, vehicles, latestKmByVehicle, knownMarques, knownDimensions, knownFournisseurs, knownModeles, onSave, onClose }: PneuFormProps) {
   const draftKey = pneu ? `fleetgest_draft_pneu_edit_${pneu.id}` : 'fleetgest_draft_pneu_new';
   const [f, setF] = usePersistedState(draftKey, {
     vehicleId: pneu?.vehicleId || vehicles[0]?.id || '',
@@ -450,6 +474,12 @@ function PneuFormModal({ pneu, vehicles, latestKmByVehicle, onSave, onClose }: P
     setF(p => ({ ...p, vehicleId, km_actuel: latestKmByVehicle.get(vehicleId) || p.km_actuel }));
   };
   const autoKm = latestKmByVehicle.get(f.vehicleId);
+  // Modèles déjà saisis : ceux de la marque choisie en premier, puis les autres
+  const modeleOptions = useMemo(() => {
+    const m = (f.marque || '').trim().toLowerCase();
+    const same = knownModeles.filter(x => x.marque.trim().toLowerCase() === m).map(x => x.modele);
+    return mergeSuggestions(same, knownModeles.map(x => x.modele));
+  }, [knownModeles, f.marque]);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
@@ -469,17 +499,14 @@ function PneuFormModal({ pneu, vehicles, latestKmByVehicle, onSave, onClose }: P
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-600">Marque
-            <select value={f.marque} onChange={e => up('marque', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              {PNEU_MARQUES.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <SelectWithOther value={f.marque} onChange={v => up('marque', v)} options={knownMarques} otherPlaceholder="Saisir la nouvelle marque" required />
           </label>
           <label className="block text-xs font-medium text-slate-600">Modèle
-            <input value={f.modele} onChange={e => up('modele', e.target.value)} placeholder="Ex: Primacy 4" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <input list="pneu-modeles" autoComplete="off" value={f.modele} onChange={e => up('modele', e.target.value)} placeholder="Ex: Primacy 4" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <datalist id="pneu-modeles">{modeleOptions.map(m => <option key={m} value={m} />)}</datalist>
           </label>
           <label className="block text-xs font-medium text-slate-600">Dimension
-            <select value={f.dimension} onChange={e => up('dimension', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              {PNEU_DIMENSIONS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            <SelectWithOther value={f.dimension} onChange={v => up('dimension', v)} options={knownDimensions} otherPlaceholder="Ex : 205/65 R16" required />
           </label>
           <label className="block text-xs font-medium text-slate-600">Date montage
             <input type="date" value={f.date_montage} onChange={e => up('date_montage', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
@@ -519,7 +546,8 @@ function PneuFormModal({ pneu, vehicles, latestKmByVehicle, onSave, onClose }: P
             <p className="mt-1 text-[10px] text-slate-400">Sinon, l'état est calculé automatiquement : Bon si les km parcourus sont inférieurs au seuil « Km max par jeu », Usure modérée s'ils sont égaux, À remplacer s'ils le dépassent.</p>
           </label>
           <label className="block text-xs font-medium text-slate-600">Fournisseur
-            <input value={f.fournisseur} onChange={e => up('fournisseur', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <input list="pneu-fournisseurs" autoComplete="off" value={f.fournisseur} onChange={e => up('fournisseur', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <datalist id="pneu-fournisseurs">{knownFournisseurs.map(x => <option key={x} value={x} />)}</datalist>
           </label>
           <label className="col-span-2 block text-xs font-medium text-slate-600">Observations
             <textarea value={f.observations} onChange={e => up('observations', e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
