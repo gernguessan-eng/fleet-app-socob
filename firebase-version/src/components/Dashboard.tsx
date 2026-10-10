@@ -19,8 +19,8 @@ const ALL_KPI_TITLES = [
   'Total Véhicules', 'Véhicules Actifs', 'En Maintenance', 'Hors Service', 'Kilométrage Moyen', 'Coût Opérationnel',
   'Taux de Disponibilité', "Taux d'Immobilisation",
   'TCO Global', 'Sinistres', 'Immobilisations',
-  'Flotte / Type de véhicule', 'Flotte / Genre', 'Flotte / Zone de travail', 'Flotte / Âge', 'Répartition de la flotte / Usage', 'Carte de répartition',
-  'Répartition par Marque', 'Dépenses par Catégorie', 'Évolution mensuelle des dépenses',
+  'Répartition de la flotte / Type de véhicule', 'Répartition de la flotte / Genre', 'Répartition de la flotte / Zone de travail', 'Répartition de la flotte / Âge', 'Répartition de la flotte / Usage', 'Répartition par Marque', 'Carte de répartition',
+  'Dépenses par Catégorie', 'Dépenses / Zone de travail', 'Évolution mensuelle des dépenses',
   'Alertes entretiens', 'Alertes échéances',
 ];
 
@@ -251,7 +251,7 @@ export default function Dashboard() {
   // KPI dont la boîte de dialogue est ouverte
   const [openKpi, setOpenKpi] = useState<null | 'maintenance' | 'hors-service' | 'immobilisation' | 'cout-op'>(null);
   // Détail ouvert depuis une zone (barre ou carte) ou une case Sinistres / Immobilisations
-  type DetailKind = 'zone-travail' | 'zone-carto' | 'sinistres' | 'immobilisations';
+  type DetailKind = 'zone-travail' | 'zone-carto' | 'sinistres' | 'immobilisations' | 'depenses-zone';
   const [detail, setDetail] = useState<null | { kind: DetailKind; key: string }>(null);
   const driverByVehicle = useMemo(() => {
     const m = new Map<string, string>();
@@ -272,7 +272,11 @@ export default function Dashboard() {
 
   // ── KPI masquables à l'impression ──
   const [hiddenKpis, setHiddenKpis] = useState<Set<string>>(() => {
-    try { const r = localStorage.getItem(KPI_PRINT_HIDDEN_KEY); return r ? new Set(JSON.parse(r)) : new Set(); } catch { return new Set(); }
+    try {
+      const r = localStorage.getItem(KPI_PRINT_HIDDEN_KEY);
+      // Les 4 KPI « Flotte / … » ont été renommés : on reporte les choix déjà enregistrés.
+      return r ? new Set<string>((JSON.parse(r) as string[]).map(t => t.startsWith('Flotte / ') ? t.replace('Flotte / ', 'Répartition de la flotte / ') : t)) : new Set<string>();
+    } catch { return new Set<string>(); }
   });
   const [showKpiSettings, setShowKpiSettings] = useState(false);
   useEffect(() => { localStorage.setItem(KPI_PRINT_HIDDEN_KEY, JSON.stringify(Array.from(hiddenKpis))); }, [hiddenKpis]);
@@ -318,6 +322,15 @@ export default function Dashboard() {
   const totalAcq = fv.reduce((s, v) => s + v.cout_achat + (v.frais_livraison || 0) + (v.frais_douane || 0) + (v.frais_installation || 0), 0);
   const totalIns = fv.reduce((s, v) => s + v.cout_assurance_annuel, 0);
   const totalExp = fe.reduce((s, e) => s + e.montant, 0);
+  const vehicleById = useMemo(() => new Map(vehicles.map(v => [v.id, v])), [vehicles]);
+  // Zone de travail d'une dépense = case « Zone de travail » de la fiche du véhicule concerné.
+  const zoneOfExpense = (vehicleId: string) => { const v = vehicleById.get(vehicleId); return v ? (v.zone_travail?.trim() || 'Non renseigné') : 'Véhicule inconnu'; };
+  const expenseByZone = useMemo(() => {
+    const m = new Map<string, { value: number; count: number }>();
+    fe.forEach(e => { const z = zoneOfExpense(e.vehicleId); const c = m.get(z) || { value: 0, count: 0 }; m.set(z, { value: c.value + e.montant, count: c.count + 1 }); });
+    return Array.from(m.entries()).map(([name, x]) => ({ name, ...x })).sort((a, b) => b.value - a.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fe, vehicleById]);
   // NB: les coûts de maintenance ne sont plus ajoutés séparément ici — depuis la fusion
   // Historique Maintenance ↔ Dépenses, chaque intervention avec un coût existe déjà comme
   // dépense (catégorie "Entretien") et est donc déjà comptée dans totalExp.
@@ -361,9 +374,9 @@ export default function Dashboard() {
   }, [filteredSinistres, fv, vehicles]);
 
   // Répartitions
-  // Flotte / Genre : basé uniquement sur la case « Genre » de la fiche véhicule.
+  // Répartition de la flotte / Genre : basé uniquement sur la case « Genre » de la fiche véhicule.
   const fleetByGenre = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const g = v.genre?.trim() || 'Non renseigné'; m.set(g, (m.get(g) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
-  // Flotte / Type de véhicule : basé uniquement sur la case « Carrosserie ».
+  // Répartition de la flotte / Type de véhicule : basé uniquement sur la case « Carrosserie ».
   const fleetByType = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const t = v.carrosserie?.trim() || 'Non renseigné'; m.set(t, (m.get(t) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
   const fleetByZone = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => { const z = v.zone_travail || 'Non renseigné'; m.set(z, (m.get(z) || 0) + 1); }); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
   const fleetByAge = useMemo(() => {
@@ -539,8 +552,8 @@ export default function Dashboard() {
 
       {/* Répartitions flotte */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Type de véhicule') ? 'print:hidden' : ''}`}>
-          <h3 className="text-sm font-bold text-slate-800">Flotte / Type de véhicule</h3>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Répartition de la flotte / Type de véhicule') ? 'print:hidden' : ''}`}>
+          <h3 className="text-sm font-bold text-slate-800">Répartition de la flotte / Type de véhicule</h3>
           <p className="mb-4 text-[11px] text-slate-400">Selon la case « Carrosserie » de la fiche véhicule</p>
           {fleetByType.length > 0 ? (
             <>
@@ -563,8 +576,8 @@ export default function Dashboard() {
             </>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Genre') ? 'print:hidden' : ''}`}>
-          <h3 className="text-sm font-bold text-slate-800">Flotte / Genre</h3>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Répartition de la flotte / Genre') ? 'print:hidden' : ''}`}>
+          <h3 className="text-sm font-bold text-slate-800">Répartition de la flotte / Genre</h3>
           <p className="mb-4 text-[11px] text-slate-400">Selon la case « Genre » de la fiche véhicule</p>
           {fleetByGenre.length > 0 ? (
             <>
@@ -587,8 +600,8 @@ export default function Dashboard() {
             </>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2 ${hiddenKpis.has('Flotte / Zone de travail') ? 'print:hidden' : ''}`}>
-          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Zone de travail</h3>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2 ${hiddenKpis.has('Répartition de la flotte / Zone de travail') ? 'print:hidden' : ''}`}>
+          <h3 className="mb-4 text-sm font-bold text-slate-800">Répartition de la flotte / Zone de travail</h3>
           {fleetByZone.length > 0 ? (
             <div
               style={{
@@ -618,8 +631,8 @@ export default function Dashboard() {
             </div>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Flotte / Âge') ? 'print:hidden' : ''}`}>
-          <h3 className="mb-4 text-sm font-bold text-slate-800">Flotte / Âge</h3>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Répartition de la flotte / Âge') ? 'print:hidden' : ''}`}>
+          <h3 className="mb-4 text-sm font-bold text-slate-800">Répartition de la flotte / Âge</h3>
           {fleetByAge.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -664,6 +677,10 @@ export default function Dashboard() {
             </>
           ) : <p className="text-sm text-slate-400">—</p>}
         </div>
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2 ${hiddenKpis.has('Répartition par Marque') ? 'print:hidden' : ''}`}>
+          <h3 className="mb-4 text-sm font-bold text-slate-800">Répartition par Marque</h3>
+          {brandDistribution.length > 0 ? <ResponsiveContainer width="100%" height={230}><BarChart data={brandDistribution}><XAxis dataKey="name" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip formatter={value => [`${value} véh.`, '']} /><Bar dataKey="value" radius={[6, 6, 0, 0]}>{brandDistribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}<LabelList dataKey="value" position="top" style={{ fontSize: 10, fill: '#475569' }} /></Bar></BarChart></ResponsiveContainer> : <p className="text-sm text-slate-400">—</p>}
+        </div>
       </div>
 
       <div className={hiddenKpis.has('Carte de répartition') ? 'print:hidden' : ''}>
@@ -697,9 +714,26 @@ export default function Dashboard() {
 
       {/* Graphiques */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Répartition par Marque') ? 'print:hidden' : ''}`}>
-          <h3 className="mb-4 text-lg font-semibold text-slate-800">Répartition par Marque</h3>
-          {brandDistribution.length > 0 ? <ResponsiveContainer width="100%" height={280}><BarChart data={brandDistribution}><XAxis dataKey="name" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip formatter={value => [`${value} véh.`, '']} /><Bar dataKey="value" radius={[6, 6, 0, 0]}>{brandDistribution.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}<LabelList dataKey="value" position="top" style={{ fontSize: 10, fill: '#475569' }} /></Bar></BarChart></ResponsiveContainer> : <p className="text-sm text-slate-400">—</p>}
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Dépenses / Zone de travail') ? 'print:hidden' : ''}`}>
+          <h3 className="mb-1 text-lg font-semibold text-slate-800">Dépenses / Zone de travail</h3>
+          <p className="mb-4 text-[11px] text-slate-400">Dépenses du menu Dépenses, regroupées selon la case « Zone de travail » du véhicule · cliquer sur une zone pour le détail</p>
+          {expenseByZone.length > 0 ? (
+            <div className="max-h-[260px] space-y-2 overflow-y-auto pr-1 print:max-h-none">
+              {(() => {
+                const maxV = Math.max(...expenseByZone.map(z => z.value), 1);
+                return expenseByZone.map(z => (
+                  <div key={z.name} onClick={() => setDetail({ kind: 'depenses-zone', key: z.name })} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 hover:bg-emerald-50" title={`${z.name} : ${fmtKPI(z.value)} (${z.count} dépense(s)) — cliquer pour le détail`}>
+                    <span className="w-[120px] flex-shrink-0 truncate text-[11px] text-slate-600">{z.name}</span>
+                    <div className="h-[18px] flex-1 rounded bg-slate-100">
+                      <div className="h-full rounded bg-emerald-500" style={{ width: `${Math.max(3, (z.value / maxV) * 100)}%` }} />
+                    </div>
+                    <span className="w-[96px] flex-shrink-0 text-right text-[11px] font-bold text-slate-700">{fmtKPI(z.value)}</span>
+                    <span className="w-9 flex-shrink-0 text-right text-[10px] text-slate-400">{totalExp > 0 ? Math.round((z.value / totalExp) * 100) : 0}%</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          ) : <p className="text-sm text-slate-400">—</p>}
         </div>
         <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Dépenses par Catégorie') ? 'print:hidden' : ''}`}>
           <h3 className="mb-4 text-lg font-semibold text-slate-800">Dépenses par Catégorie</h3>
@@ -741,7 +775,7 @@ export default function Dashboard() {
           return <Link key={v.id} to={`/vehicule/${v.id}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-amber-50 hover:border-amber-200"><div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-amber-500" /><div><p className="text-sm font-semibold text-slate-800">{v.numero_immatriculation}</p><p className="text-xs text-slate-500">{v.marque} {v.type_commercial}</p></div></div><div className="flex flex-wrap justify-end gap-1">{a.map(x => <span key={x} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{x}</span>)}</div></Link>;
         })}</div> : <p className="text-sm text-slate-400">Aucune alerte ✓</p>}
       </div>
-      {/* ── Détail d'une zone (Flotte / Zone de travail ou Cartographie) ── */}
+      {/* ── Détail d'une zone (Répartition de la flotte / Zone de travail ou Cartographie) ── */}
       {detail && (detail.kind === 'zone-travail' || detail.kind === 'zone-carto') && (() => {
         const isCarto = detail.kind === 'zone-carto';
         const list = fv.filter(v => isCarto ? v.zone_affectation === detail.key : (v.zone_travail || 'Non renseigné') === detail.key);
@@ -765,6 +799,102 @@ export default function Dashboard() {
               { l: 'Sinistres (période)', v: nbSin, c: 'bg-red-50 text-red-700' },
             ]} />
             <ZoneVehicleTable list={list} driverByVehicle={driverByVehicle} costByVehicle={costByVehicle} sinCountByVehicle={sinCountByVehicle} onOpen={id => navigate(`/vehicule/${id}`)} />
+          </KpiModal>
+        );
+      })()}
+
+      {/* ── Détail d'une zone : justification des dépenses (Dépenses / Zone de travail) ── */}
+      {detail?.kind === 'depenses-zone' && (() => {
+        const list = fe.filter(e => zoneOfExpense(e.vehicleId) === detail.key).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const total = list.reduce((a, e) => a + e.montant, 0);
+        const vehLabel = (id: string) => vehicleById.get(id)?.numero_immatriculation || 'Inconnu';
+        const byCat = new Map<string, { n: number; v: number }>();
+        const byVeh = new Map<string, { n: number; v: number }>();
+        list.forEach(e => {
+          const c = byCat.get(e.categorie) || { n: 0, v: 0 }; byCat.set(e.categorie, { n: c.n + 1, v: c.v + e.montant });
+          const x = byVeh.get(e.vehicleId) || { n: 0, v: 0 }; byVeh.set(e.vehicleId, { n: x.n + 1, v: x.v + e.montant });
+        });
+        const cats = Array.from(byCat.entries()).sort((a, b) => b[1].v - a[1].v);
+        const vehs = Array.from(byVeh.entries()).sort((a, b) => b[1].v - a[1].v);
+        const periode = filterPeriodFrom || filterPeriodTo ? `du ${fmtDateFr(filterPeriodFrom)} au ${fmtDateFr(filterPeriodTo)}` : 'toutes périodes';
+        const openExpenses = () => {
+          const set = (k: string, v: string) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+          set('fleetgest_filter_expenses_from', filterPeriodFrom);
+          set('fleetgest_filter_expenses_to', filterPeriodTo);
+          set('fleetgest_filter_expenses_category', '');
+          set('fleetgest_filter_expenses_vehicle', '');
+          set('fleetgest_filter_expenses_search', '');
+          navigate('/depenses');
+        };
+        return (
+          <KpiModal
+            title={`Dépenses — zone de travail « ${detail.key} » — ${fmtKPI(total)}`}
+            subtitle={`${list.length} dépense(s) · ${totalExp > 0 ? ((total / totalExp) * 100).toFixed(1) : '0.0'} % des dépenses · ${periode}${filterDept ? ` · département : ${filterDept}` : ''} · véhicules dont la case « Zone de travail » = « ${detail.key} »`}
+            onClose={() => setDetail(null)}
+          >
+            <MiniStats items={[
+              { l: 'Total dépensé', v: fmtKPI(total), c: 'bg-emerald-50 text-emerald-700' },
+              { l: 'Nombre de dépenses', v: list.length, c: 'bg-slate-50 text-slate-800' },
+              { l: 'Véhicules concernés', v: byVeh.size, c: 'bg-indigo-50 text-indigo-700' },
+              { l: 'Moyenne / véhicule', v: byVeh.size > 0 ? fmtKPI(Math.round(total / byVeh.size)) : '—', c: 'bg-amber-50 text-amber-700' },
+            ]} />
+            {cats.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Par catégorie</h4>
+                <div className="flex flex-wrap gap-2">
+                  {cats.map(([c, x]) => <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-700"><b>{c}</b> · {x.n} · {fmtKPI(x.v)} ({total > 0 ? Math.round((x.v / total) * 100) : 0}%)</span>)}
+                </div>
+              </div>
+            )}
+            {vehs.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Par véhicule</h4>
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Affectation</th><th className="px-3 py-2 text-right">Nb dépenses</th><th className="px-3 py-2 text-right">Montant</th><th className="px-3 py-2"></th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {vehs.map(([vid, x]) => (
+                        <tr key={vid} className="hover:bg-slate-50">
+                          <td className="px-3 py-2 font-semibold text-slate-800">{vehLabel(vid)}</td>
+                          <td className="px-3 py-2">{vehicleById.get(vid)?.affectation || '—'}</td>
+                          <td className="px-3 py-2 text-right">{x.n}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{fmtKPI(x.v)}</td>
+                          <td className="px-3 py-2">{vehicleById.has(vid) && <button onClick={() => navigate(`/vehicule/${vid}`)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-white">Fiche <ChevronRight className="h-3 w-3" /></button>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Détail des dépenses ({list.length})</h4>
+              {list.length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucune dépense pour cette zone sur la période.</p> : (
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Catégorie</th><th className="px-3 py-2">Libellé</th><th className="px-3 py-2">Fournisseur</th><th className="px-3 py-2">N° pièce</th><th className="px-3 py-2 text-right">Montant</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {list.map(e => (
+                        <tr key={e.id} className="align-top hover:bg-slate-50">
+                          <td className="px-3 py-2 whitespace-nowrap">{fmtDateFr(e.date)}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-800">{vehLabel(e.vehicleId)}</td>
+                          <td className="px-3 py-2">{e.categorie}</td>
+                          <td className="px-3 py-2">{e.libelle || '—'}{e.notes ? <p className="text-slate-400">{e.notes}</p> : null}</td>
+                          <td className="px-3 py-2">{e.fournisseur || '—'}</td>
+                          <td className="px-3 py-2">{e.numero_piece || '—'}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{fmtKPI(e.montant)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="border-t-2 border-slate-300 bg-slate-100"><tr><td colSpan={6} className="px-3 py-2 text-right font-bold text-slate-900">Total</td><td className="px-3 py-2 text-right whitespace-nowrap font-extrabold text-slate-900">{fmtKPI(total)}</td></tr></tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button onClick={openExpenses} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /> Ouvrir le menu Dépenses</button>
+              <p className="text-[11px] text-slate-400">Le menu Dépenses n'a pas de filtre par zone : il s'ouvre sur la même période, toutes zones confondues.</p>
+            </div>
           </KpiModal>
         );
       })()}
