@@ -111,6 +111,11 @@ export default function VehicleList() {
   };
   const [search, setSearch]           = usePersistedState('fleetgest_filter_vehicles_search', '');
   const [filterStatus, setFilterStatus] = usePersistedState('fleetgest_filter_vehicles_status', '');
+  const [filterCarrosserie, setFilterCarrosserie] = usePersistedState('fleetgest_filter_vehicles_carrosserie', '');
+  const [filterGenre, setFilterGenre] = usePersistedState('fleetgest_filter_vehicles_genre', '');
+  const [filterMarque, setFilterMarque] = usePersistedState('fleetgest_filter_vehicles_marque', '');
+  const [filterUsage, setFilterUsage] = usePersistedState('fleetgest_filter_vehicles_usage', '');
+  const [filterZone, setFilterZone] = usePersistedState('fleetgest_filter_vehicles_zone', '');
   const [showForm, setShowForm]       = usePersistedState('fleetgest_draft_vehicle_form_open', false);
   const [editVehicleId, setEditVehicleId] = usePersistedState<string | null>('fleetgest_draft_vehicle_edit_id', null);
   const editVehicle = editVehicleId ? vehicles.find(v => v.id === editVehicleId) : undefined;
@@ -142,6 +147,47 @@ export default function VehicleList() {
     }, 200);
   };
 
+  // ── Filtres par case de la fiche : carrosserie, genre, marque, usage, zone de travail ──
+  // Les choix proposés sont les valeurs réellement présentes sur les véhicules (sans doublon,
+  // sans tenir compte de la casse) ; « Non renseigné » apparaît si des fiches ont la case vide.
+  const NONE = '__none__';
+  const norm = (x?: string) => (x || '').trim().toLowerCase();
+  const facets = [
+    { id: 'carrosserie', label: 'Toutes les carrosseries', get: (v: Vehicle) => v.carrosserie, value: filterCarrosserie, set: setFilterCarrosserie },
+    { id: 'genre',       label: 'Tous les genres',          get: (v: Vehicle) => v.genre,       value: filterGenre,       set: setFilterGenre },
+    { id: 'marque',      label: 'Toutes les marques',       get: (v: Vehicle) => v.marque,      value: filterMarque,      set: setFilterMarque },
+    { id: 'usage',       label: 'Tous les usages',          get: (v: Vehicle) => v.usage_vehicule, value: filterUsage,    set: setFilterUsage },
+    { id: 'zone',        label: 'Toutes les zones de travail', get: (v: Vehicle) => v.zone_travail, value: filterZone,   set: setFilterZone },
+  ];
+  const facetOptions = useMemo(() => {
+    const out: Record<string, { values: string[]; hasEmpty: boolean }> = {};
+    facets.forEach((f) => {
+      const seen = new Map<string, string>();
+      let hasEmpty = false;
+      vehicles.forEach((v) => {
+        const t = (f.get(v) || '').trim();
+        if (!t) { hasEmpty = true; return; }
+        if (!seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
+      });
+      out[f.id] = { values: Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'fr')), hasEmpty };
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles]);
+  // Valeur réellement sélectionnable : un filtre mémorisé dont la valeur n'existe plus est ignoré
+  const facetState = facets.map((f) => {
+    const o = facetOptions[f.id];
+    const shown = f.value === NONE ? (o.hasEmpty ? NONE : '') : (o.values.find((x) => norm(x) === norm(f.value)) ?? '');
+    return { ...f, o, shown };
+  });
+  const facetKey = facetState.map((f) => f.shown).join('|');
+  const anyFilter = !!(search || filterStatus || facetState.some((f) => f.shown));
+  const resetFilters = () => {
+    setSearch(''); setFilterStatus('');
+    facets.forEach((f) => f.set(''));
+    setCurrentPage(1);
+  };
+
   const filtered = useMemo(() => vehicles.filter((v) => {
     const q = search.toLowerCase();
     return (
@@ -151,9 +197,11 @@ export default function VehicleList() {
         v.type_commercial.toLowerCase().includes(q) ||
         v.conducteur.toLowerCase().includes(q) ||
         v.vin_chassis.toLowerCase().includes(q)) &&
-      (!filterStatus || v.statut === filterStatus)
+      (!filterStatus || v.statut === filterStatus) &&
+      facetState.every((f) => !f.shown || (f.shown === NONE ? !norm(f.get(v)) : norm(f.get(v)) === norm(f.shown)))
     );
-  }), [vehicles, search, filterStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [vehicles, search, filterStatus, facetKey]);
 
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated  = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
@@ -297,8 +345,8 @@ export default function VehicleList() {
       )}
 
       {/* ── Filters ── */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <div className="relative min-w-[260px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -315,6 +363,24 @@ export default function VehicleList() {
         >
           {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        {facetState.map((f) => (
+          <select
+            key={f.id}
+            aria-label={f.label}
+            value={f.shown}
+            onChange={(e) => { f.set(e.target.value); setCurrentPage(1); }}
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          >
+            <option value="">{f.label}</option>
+            {f.o.values.map((x) => <option key={x} value={x}>{x}</option>)}
+            {f.o.hasEmpty && <option value={NONE}>Non renseigné</option>}
+          </select>
+        ))}
+        {anyFilter && (
+          <button onClick={resetFilters} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50">
+            Réinitialiser
+          </button>
+        )}
       </div>
 
       {/* ── Arborescence controls ── */}
