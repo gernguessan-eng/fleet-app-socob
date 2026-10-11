@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
 import DriverDetailModal from './DriverDetailModal';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 
 function fmtDate(d: string) {
   if (!d) return '—';
@@ -166,10 +168,16 @@ function MissionFormModal({ mission, drivers, vehicles, existingMissions, onSave
   const draftKey = mission ? `fleetgest_draft_mission_edit_${mission.id}` : 'fleetgest_draft_mission_new';
   const [f, setF] = usePersistedState<Omit<Mission, 'id'>>(draftKey, mission ? { ...mission } : { ...emptyMission });
   const [error, setError] = useState('');
+  // Titres et lieux déjà saisis sur les autres missions, reproposés
+  const sg = {
+    titres: uniqueValues(existingMissions.map(m => m.titre)),
+    lieux: uniqueValues(existingMissions.flatMap(m => [m.lieu_depart, m.lieu_arrivee])),
+  };
   const up = (k: string, v: string | number) => { setF(p => ({ ...p, [k]: v })); setError(''); };
-  const inp = (label: string, key: string, type = 'text', placeholder?: string) => (
+  const inp = (label: string, key: string, type = 'text', placeholder?: string, suggest?: string[]) => (
     <label className="block text-xs font-medium text-slate-600">{label}
-      <input
+      <SuggestInput
+        suggestions={suggest || []}
         type={type}
         value={(f as any)[key] || ''}
         onChange={e => up(key, type === 'number' ? Number(e.target.value) : e.target.value)}
@@ -234,8 +242,8 @@ function MissionFormModal({ mission, drivers, vehicles, existingMissions, onSave
               {vehicles.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
             </select>
           </label>
-          <div className="col-span-2">{inp('Titre de la mission', 'titre', 'text', 'Ex: Livraison Yamoussoukro, Visite client Bouaké...')}</div>
-          {inp('Lieu de départ', 'lieu_depart', 'text', 'Ex: Abidjan, Plateau')}{inp("Lieu d'arrivée", 'lieu_arrivee', 'text', 'Ex: Yamoussoukro')}
+          <div className="col-span-2">{inp('Titre de la mission', 'titre', 'text', 'Ex: Livraison Yamoussoukro, Visite client Bouaké...', sg.titres)}</div>
+          {inp('Lieu de départ', 'lieu_depart', 'text', 'Ex: Abidjan, Plateau', sg.lieux)}{inp("Lieu d'arrivée", 'lieu_arrivee', 'text', 'Ex: Yamoussoukro', sg.lieux)}
           {inp('Date début', 'date_debut', 'date')}{inp('Date fin', 'date_fin', 'date')}
           {inp('Heure départ', 'heure_depart', 'time')}{inp('Heure retour', 'heure_retour', 'time')}
           {inp('Km départ', 'km_depart', 'number', 'Ex: 45200')}{inp('Km retour', 'km_retour', 'number', 'Ex: 45680')}
@@ -268,6 +276,7 @@ function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave,
   const draftKey = event ? `fleetgest_draft_planning_edit_${event.id}` : 'fleetgest_draft_planning_new';
   const [f, setF] = usePersistedState<Omit<PlanningEvent, 'id'>>(draftKey, event ? { ...event } : { ...emptyEvent });
   const [error, setError] = useState('');
+  const sg = { titres: uniqueValues(existingPlanning.map(e => e.titre)) };
   const up = (k: string, v: string) => { setF(p => ({ ...p, [k]: v })); setError(''); };
 
   // Pour les missions : seuls les chauffeurs disponibles
@@ -317,7 +326,7 @@ function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave,
             )}
           </label>
           <label className="block text-xs font-medium text-slate-600">Titre
-            <input required value={f.titre} onChange={e => up('titre', e.target.value)} placeholder="Ex: Mission Bouaké, Congé annuel, Formation sécurité..." className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <SuggestInput suggestions={sg.titres} required value={f.titre} onChange={e => up('titre', e.target.value)} placeholder="Ex: Mission Bouaké, Congé annuel, Formation sécurité..." className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block text-xs font-medium text-slate-600">Type
