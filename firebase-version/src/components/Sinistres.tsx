@@ -6,6 +6,8 @@ import type { SinistreRecord } from '../types/sinistres';
 import { SINISTRE_TYPES, NATURE_DOMMAGE_OPTIONS, RESPONSABILITE_OPTIONS, COMMUNES_SUGGESTIONS } from '../types/sinistres';
 import { parseSpreadsheetFile, getCell, parseAmount, exportRowsToExcel } from '../utils/importExport';
 import SelectWithOther from './SelectWithOther';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 import DeleteGuardButton from './DeleteGuardButton';
 import {
   AlertTriangle, Plus, Printer, Search,
@@ -388,6 +390,16 @@ interface SinistreFormProps {
 }
 
 function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreFormProps) {
+  // Valeurs déjà saisies sur les autres sinistres, reproposées dans le formulaire
+  const { sinistres: allSinistres } = useVehicles();
+  const sg = useMemo(() => ({
+    lieux: uniqueValues(allSinistres.map(x => x.lieu)),
+    communes: uniqueValues([...COMMUNES_SUGGESTIONS, ...allSinistres.map(x => x.commune)]),
+    assureurs: uniqueValues(allSinistres.map(x => x.assureur)),
+    responsables: uniqueValues(allSinistres.map(x => x.responsable)),
+    types: uniqueValues([...SINISTRE_TYPES, ...allSinistres.map(x => String(x.type))], { sort: false, exclude: ['Autre'] }),
+    natures: uniqueValues([...NATURE_DOMMAGE_OPTIONS, ...allSinistres.map(x => x.nature_dommage)], { sort: false, exclude: ['Autre'] }),
+  }), [allSinistres]);
   const [f, setF] = useState({
     vehicleId: sinistre?.vehicleId || vehicles[0]?.id || '',
     date_sinistre: sinistre?.date_sinistre || new Date().toISOString().slice(0, 10),
@@ -424,17 +436,17 @@ function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreForm
             <input type="date" value={f.date_sinistre} onChange={e => up('date_sinistre', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Lieu
-            <input value={f.lieu} onChange={e => up('lieu', e.target.value)} placeholder="Ex: Boulevard Latrille, Abidjan" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <SuggestInput suggestions={sg.lieux} value={f.lieu} onChange={e => up('lieu', e.target.value)} placeholder="Ex: Boulevard Latrille, Abidjan" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Commune
             <input list="sinistre-communes" value={f.commune} onChange={e => up('commune', e.target.value)} placeholder="Ex: Cocody" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-            <datalist id="sinistre-communes">{COMMUNES_SUGGESTIONS.map(c => <option key={c} value={c} />)}</datalist>
+            <datalist id="sinistre-communes">{sg.communes.map(c => <option key={c} value={c} />)}</datalist>
           </label>
           <label className="block text-xs font-medium text-slate-600">Type de sinistre
             <SelectWithOther
               value={f.type}
               onChange={(v) => up('type', v)}
-              options={SINISTRE_TYPES.filter(t => t !== 'Autre')}
+              options={sg.types}
               otherPlaceholder="Préciser le type de sinistre…"
             />
           </label>
@@ -442,7 +454,7 @@ function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreForm
             <SelectWithOther
               value={f.nature_dommage || ''}
               onChange={(v) => up('nature_dommage', v)}
-              options={NATURE_DOMMAGE_OPTIONS.filter(n => n !== 'Autre')}
+              options={sg.natures}
               placeholder="Non déterminée"
               otherPlaceholder="Préciser la nature des dommages…"
             />
@@ -457,7 +469,7 @@ function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreForm
             <input type="number" value={f.cout_final} onChange={e => up('cout_final', Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Assureur
-            <input value={f.assureur} onChange={e => up('assureur', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <SuggestInput suggestions={sg.assureurs} value={f.assureur} onChange={e => up('assureur', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">N° dossier
             <input value={f.numero_dossier} onChange={e => up('numero_dossier', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
@@ -478,7 +490,7 @@ function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreForm
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-600">Responsable
-            <input value={f.responsable} onChange={e => up('responsable', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+            <SuggestInput suggestions={sg.responsables} value={f.responsable} onChange={e => up('responsable', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Témoins
             <input value={f.temoins} onChange={e => up('temoins', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
