@@ -12,6 +12,7 @@ import {
   type CataloguePiece, type PriceHistoryEntry, type ComparatifRecord,
   COMPARATIF_COLONNES_STORAGE_KEY, SAMPLE_COMPARATIF_COLONNES,
 } from '../types/catalogue';
+import SuggestInput from './SuggestInput';
 
 function loadColonnes(): string[] {
   try { const r = localStorage.getItem(COMPARATIF_COLONNES_STORAGE_KEY); return r ? JSON.parse(r) : SAMPLE_COMPARATIF_COLONNES; } catch { return SAMPLE_COMPARATIF_COLONNES; }
@@ -391,7 +392,7 @@ export default function Catalogue() {
                       <th className="px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 print:hidden">
                         {showAddColonne ? (
                           <div className="flex items-center gap-1">
-                            <input autoFocus value={newColonneName} onChange={e => setNewColonneName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddColonne()} placeholder="Nom du fournisseur" className="w-28 rounded border border-slate-300 px-1.5 py-1 text-[11px] font-normal normal-case focus:border-emerald-500 focus:outline-none" />
+                            <SuggestInput suggestions={knownSuppliers} autoFocus value={newColonneName} onChange={e => setNewColonneName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddColonne()} placeholder="Nom du fournisseur" className="w-28 rounded border border-slate-300 px-1.5 py-1 text-[11px] font-normal normal-case focus:border-emerald-500 focus:outline-none" />
                             <button onClick={handleAddColonne} className="text-emerald-600 hover:text-emerald-800" title="Ajouter"><Check className="h-3.5 w-3.5" /></button>
                             <button onClick={() => { setShowAddColonne(false); setNewColonneName(''); }} className="text-slate-400 hover:text-slate-600" title="Annuler"><X className="h-3.5 w-3.5" /></button>
                           </div>
