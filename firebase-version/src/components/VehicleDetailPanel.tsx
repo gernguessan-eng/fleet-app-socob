@@ -11,6 +11,8 @@ import { getVehicleMaintenanceForecast, isMaintenanceDerivedExpense } from '../u
 import { uploadVehicleImage, validateImageFile } from '../utils/uploadImage';
 import DeleteGuardButton from './DeleteGuardButton';
 import SortDateButton, { type SortOrder } from './SortDateButton';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 
 interface Props { vehicle: Vehicle; printMode?: boolean; }
 
@@ -69,6 +71,9 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
     maintenanceRecords, addMaintenanceRecord, deleteMaintenanceRecord,
     expenseRecords, deleteExpenseRecord, updateVehicle,
   } = useVehicles();
+  // Types d'intervention et descriptions déjà saisis, reproposés dans le formulaire d'entretien
+  const maintTypes = uniqueValues(maintenanceRecords.map(m => m.type));
+  const maintDescriptions = uniqueValues(maintenanceRecords.map(m => m.description));
 
   const [showMaintForm, setShowMaintForm] = usePersistedState(`fleetgest_draft_maint_form_open_${vehicle.id}`, false);
   const [maintForm, setMaintForm]         = usePersistedState(`fleetgest_draft_maint_new_${vehicle.id}`, { date: '', type: '', description: '', cout: '', kilometrage: '' });
@@ -406,8 +411,8 @@ export default function VehicleDetailPanel({ vehicle, printMode = false }: Props
             {showMaintForm && (
               <form onSubmit={handleAddMaintenance} className="mb-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                 <input type="date" required value={maintForm.date} onChange={(e) => setMaintForm((p) => ({ ...p, date: e.target.value }))} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                <input type="text" required placeholder="Type d'intervention" value={maintForm.type} onChange={(e) => setMaintForm((p) => ({ ...p, type: e.target.value }))} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                <input type="text" placeholder="Description" value={maintForm.description} onChange={(e) => setMaintForm((p) => ({ ...p, description: e.target.value }))} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                <SuggestInput suggestions={maintTypes} type="text" required placeholder="Type d'intervention" value={maintForm.type} onChange={(e) => setMaintForm((p) => ({ ...p, type: e.target.value }))} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                <SuggestInput suggestions={maintDescriptions} type="text" placeholder="Description" value={maintForm.description} onChange={(e) => setMaintForm((p) => ({ ...p, description: e.target.value }))} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
                 <div className="grid grid-cols-2 gap-2">
                   <input type="number" required placeholder="Coût (FCFA)" value={maintForm.cout} onChange={(e) => setMaintForm((p) => ({ ...p, cout: e.target.value }))} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
                   <input type="number" placeholder="Kilométrage" value={maintForm.kilometrage} onChange={(e) => setMaintForm((p) => ({ ...p, kilometrage: e.target.value }))} className="rounded border border-slate-300 px-2 py-1.5 text-sm" />
