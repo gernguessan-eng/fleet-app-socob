@@ -12,6 +12,8 @@ import L from 'leaflet';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { detectIvoryCoastZoneFromText, getZoneMeta } from '../utils/civZones';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 
 const DefaultIcon = L.icon({
   iconUrl: markerIcon,
@@ -146,6 +148,9 @@ export default function GeolocTrajets() {
   const destinationZone = useMemo(() => detectIvoryCoastZoneFromText(destination), [destination]);
 
   // ── Calcul 100% local, instantané ──────────────────────────────────────────
+  // Départs / destinations déjà calculés avec succès, reproposés à la saisie
+  const [recentPlaces, setRecentPlaces] = usePersistedState<string[]>('fleetgest_recent_places', []);
+
   const handleCalculateRoute = useCallback(() => {
     setError('');
     setRouteResult(null);
@@ -177,7 +182,8 @@ export default function GeolocTrajets() {
       originName:  o.name,
       destName:    d.name,
     });
-  }, [origin, destination, selectedVehicleId]);
+    setRecentPlaces(prev => uniqueValues([o.name, d.name, ...prev], { sort: false }).slice(0, 50));
+  }, [origin, destination, selectedVehicleId, setRecentPlaces]);
 
   const fuelConsumption = useMemo(() => {
     if (!routeResult || !selectedVehicle?.consommation_100km) return null;
@@ -246,7 +252,7 @@ export default function GeolocTrajets() {
 
             <label className="block text-xs font-medium text-slate-600">
               Point de départ
-              <input value={origin} onChange={e => { setOrigin(e.target.value); setRouteResult(null); setError(''); }}
+              <SuggestInput suggestions={recentPlaces} value={origin} onChange={e => { setOrigin(e.target.value); setRouteResult(null); setError(''); }}
                 placeholder="Ex: Abidjan, Cocody"
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </label>
@@ -258,7 +264,7 @@ export default function GeolocTrajets() {
 
             <label className="block text-xs font-medium text-slate-600">
               Destination
-              <input value={destination} onChange={e => { setDestination(e.target.value); setRouteResult(null); setError(''); }}
+              <SuggestInput suggestions={recentPlaces} value={destination} onChange={e => { setDestination(e.target.value); setRouteResult(null); setError(''); }}
                 placeholder="Ex: Yamoussoukro"
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </label>
