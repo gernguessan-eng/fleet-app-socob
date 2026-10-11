@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { usePersistedState } from '../hooks/usePersistedState';
 import { useVehicles } from '../store/VehicleStore';
 import { useDrivers } from '../store/DriverStore';
 import type { Vehicle } from '../types';
 import { X, FileImage } from 'lucide-react';
 import { uploadVehicleImage, validateImageFile } from '../utils/uploadImage';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 
 interface VehicleFormProps {
   vehicle: Vehicle | undefined;
@@ -70,7 +72,7 @@ const emptyVehicle: Omit<Vehicle, 'id'> = {
 };
 
 export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormProps) {
-  const { addVehicle, updateVehicle } = useVehicles();
+  const { vehicles, addVehicle, updateVehicle } = useVehicles();
   const { drivers, updateDriver } = useDrivers();
   const conducteurOptions = [
     ...drivers.map((d) => { const nomComplet = `${d.nom} ${d.prenom}`.trim(); return { value: nomComplet, label: nomComplet }; }),
@@ -187,6 +189,26 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
     { id: 'gestion' as const, label: 'Gestion Parc' },
   ];
 
+  // Valeurs déjà saisies sur les autres véhicules, reproposées dans les cases de saisie libre.
+  // (Les identifiants uniques — immatriculation, carte grise, VIN, n° moteur… — n'en ont pas.)
+  const suggestionsByField = useMemo(() => {
+    const pick = (k: keyof Vehicle) => uniqueValues(vehicles.map(v => v[k] as string));
+    const marque = ((formData as any).marque || '').trim().toLowerCase();
+    const modelesDeLaMarque = vehicles.filter(v => (v.marque || '').trim().toLowerCase() === marque).map(v => v.type_commercial);
+    return {
+      nom_proprietaire: pick('nom_proprietaire'),
+      marque: pick('marque'),
+      // les modèles de la marque choisie d'abord, puis les autres
+      type_commercial: uniqueValues([...modelesDeLaMarque, ...vehicles.map(v => v.type_commercial)], { sort: false }),
+      couleur: pick('couleur'),
+      carrosserie: pick('carrosserie'),
+      type_technique: pick('type_technique'),
+      societe_credit: pick('societe_credit'),
+      affectation: pick('affectation'),
+      zone_travail: pick('zone_travail'),
+    } as Record<string, string[]>;
+  }, [vehicles, (formData as any).marque]);
+
   const renderInput = (label: string, field: string, type = 'text', options?: { value: string; label: string }[], placeholder?: string) => (
     <div>
       <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
@@ -202,7 +224,8 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
           ))}
         </select>
       ) : (
-        <input
+        <SuggestInput
+          suggestions={type === 'text' ? (suggestionsByField[field] || []) : []}
           type={type}
           value={(formData as any)[field] || ''}
           onChange={(e) => handleChange(field, type === 'number' ? Number(e.target.value) : e.target.value)}
