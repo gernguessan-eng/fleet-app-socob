@@ -9,6 +9,8 @@ import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
 import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { ExpenseCategory, ExpenseRecord } from '../types';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 
 const categoryOptions: ExpenseCategory[] = [
   'Carburant', 'Entretien', 'Réparation', 'Assurance', 'Vignette',
@@ -54,7 +56,10 @@ export default function Expenses() {
   }).sort((a, b) => sortOrder === 'asc' ? new Date(a.date).getTime() - new Date(b.date).getTime() : new Date(b.date).getTime() - new Date(a.date).getTime()), [expenseRecords, filterCategory, filterVehicle, search, vehicleById, periodFrom, periodTo, sortOrder]);
 
   // Historique des fournisseurs déjà saisis, pour une saisie intuitive (autocomplétion)
-  const knownSuppliers = useMemo(() => Array.from(new Set(expenseRecords.map(e => e.fournisseur).filter(Boolean))).sort(), [expenseRecords]);
+  const knownSuppliers = useMemo(() => uniqueValues(expenseRecords.map(e => e.fournisseur)), [expenseRecords]);
+  const knownLibelles = useMemo(() => uniqueValues(expenseRecords.map(e => e.libelle)), [expenseRecords]);
+  // Modes de paiement « Autre (préciser) » déjà saisis : reproposés
+  const knownPaiements = useMemo(() => uniqueValues(expenseRecords.map(e => e.mode_paiement), { exclude: [...PAYMENT_OPTIONS, 'Autre'] }), [expenseRecords]);
 
   const totalFiltered = filteredExpenses.reduce((sum, e) => sum + e.montant, 0);
   const monthlyAverage = expenseRecords.length > 0 ? Math.round(stats.totalExpenseCost / Math.max(stats.monthlyExpenses.length, 1)) : 0;
@@ -221,6 +226,8 @@ export default function Expenses() {
           expense={editingExpense}
           vehicles={vehicles}
           knownSuppliers={knownSuppliers}
+          knownLibelles={knownLibelles}
+          knownPaiements={knownPaiements}
           onSave={handleSaveExpense}
           onClose={() => { setShowForm(false); setEditingExpenseId(null); }}
         />
@@ -229,10 +236,12 @@ export default function Expenses() {
   );
 }
 
-function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }: {
+function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, knownPaiements, onSave, onClose }: {
   expense?: ExpenseRecord;
   vehicles: { id: string; numero_immatriculation: string; marque: string; type_commercial: string }[];
   knownSuppliers: string[];
+  knownLibelles: string[];
+  knownPaiements: string[];
   onSave: (data: Omit<ExpenseRecord, 'id'>, id?: string) => void;
   onClose: () => void;
 }) {
@@ -296,7 +305,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }
               <label className="block text-xs font-medium text-slate-600">Kilométrage<input type="number" min="0" required placeholder="85000" value={f.kilometrage_entretien} onChange={(e) => up('kilometrage_entretien', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500" /></label>
             </div>
           )}
-          <label className="col-span-2 block text-xs font-medium text-slate-600">Libellé<input required value={f.libelle} onChange={(e) => up('libelle', e.target.value)} placeholder="Ex: Vidange, carburant..." className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
+          <label className="col-span-2 block text-xs font-medium text-slate-600">Libellé<SuggestInput suggestions={knownLibelles} required value={f.libelle} onChange={(e) => up('libelle', e.target.value)} placeholder="Ex: Vidange, carburant..." className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">
             Montant (FCFA)
             <input type="number" required value={f.montant} onChange={(e) => up('montant', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
@@ -314,7 +323,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, onSave, onClose }
           </label>
           {f.mode_paiement === 'Autre' && (
             <label className="block text-xs font-medium text-slate-600">Préciser le mode de paiement
-              <input required value={customPaiement} onChange={(e) => setCustomPaiement(e.target.value)} placeholder="Ex: Chèque différé, Traite…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              <SuggestInput suggestions={knownPaiements} required value={customPaiement} onChange={(e) => setCustomPaiement(e.target.value)} placeholder="Ex: Chèque différé, Traite…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </label>
           )}
           <label className="block text-xs font-medium text-slate-600">N° pièce<input value={f.numero_piece} onChange={(e) => up('numero_piece', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
