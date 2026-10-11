@@ -7,6 +7,8 @@ import {
   MapPin, Building2, Globe, User, Briefcase,
 } from 'lucide-react';
 import DeleteGuardButton from './DeleteGuardButton';
+import SuggestInput from './SuggestInput';
+import { uniqueValues } from '../utils/suggestions';
 
 const TYPE_OPTIONS: Contact['type_contact'][] = [
   'Fournisseur', 'Garage', 'Assureur', 'Client', 'Partenaire', 'Administration', 'Chauffeur', 'Autre',
@@ -202,6 +204,15 @@ interface ContactFormProps {
 }
 
 function ContactFormModal({ contact, onSave, onClose }: ContactFormProps) {
+  // Valeurs déjà saisies sur les autres contacts, reproposées dans le formulaire
+  const { contacts: allContacts } = useVehicles();
+  const sg = useMemo(() => ({
+    societes: uniqueValues(allContacts.map(c => c.societe)),
+    fonctions: uniqueValues(allContacts.map(c => c.fonction)),
+    adresses: uniqueValues(allContacts.map(c => c.adresse)),
+    villes: uniqueValues(allContacts.map(c => c.ville)),
+    pays: uniqueValues(allContacts.map(c => c.pays)),
+  }), [allContacts]);
   const draftKey = contact ? `fleetgest_draft_contact_edit_${contact.id}` : 'fleetgest_draft_contact_new';
   const [f, setF] = usePersistedState<Omit<Contact, 'id'>>(draftKey, {
     type_contact: contact?.type_contact || emptyContact.type_contact,
@@ -260,10 +271,10 @@ function ContactFormModal({ contact, onSave, onClose }: ContactFormProps) {
             <input value={f.prenom} onChange={(e) => up('prenom', e.target.value)} className={inputCls} />
           </label>
           <label className={labelCls}>Société / Organisation
-            <input value={f.societe} onChange={(e) => up('societe', e.target.value)} className={inputCls} />
+            <SuggestInput suggestions={sg.societes} value={f.societe} onChange={(e) => up('societe', e.target.value)} className={inputCls} />
           </label>
           <label className={labelCls}>Fonction
-            <input value={f.fonction} onChange={(e) => up('fonction', e.target.value)} placeholder="Ex: Gestionnaire de flotte" className={inputCls} />
+            <SuggestInput suggestions={sg.fonctions} value={f.fonction} onChange={(e) => up('fonction', e.target.value)} placeholder="Ex: Gestionnaire de flotte" className={inputCls} />
           </label>
 
           <div className="col-span-2 rounded-lg bg-sky-50 p-3 -mb-1 mt-2">
@@ -283,13 +294,13 @@ function ContactFormModal({ contact, onSave, onClose }: ContactFormProps) {
             <input value={f.site_web} onChange={(e) => up('site_web', e.target.value)} placeholder="www.exemple.ci" className={inputCls} />
           </label>
           <label className={labelCls}>Adresse
-            <input value={f.adresse} onChange={(e) => up('adresse', e.target.value)} className={inputCls} />
+            <SuggestInput suggestions={sg.adresses} value={f.adresse} onChange={(e) => up('adresse', e.target.value)} className={inputCls} />
           </label>
           <label className={labelCls}>Ville
-            <input value={f.ville} onChange={(e) => up('ville', e.target.value)} className={inputCls} />
+            <SuggestInput suggestions={sg.villes} value={f.ville} onChange={(e) => up('ville', e.target.value)} className={inputCls} />
           </label>
           <label className={labelCls}>Pays
-            <input value={f.pays} onChange={(e) => up('pays', e.target.value)} className={inputCls} />
+            <SuggestInput suggestions={sg.pays} value={f.pays} onChange={(e) => up('pays', e.target.value)} className={inputCls} />
           </label>
           <label className={labelCls}>Date de création
             <input type="date" value={f.date_creation} onChange={(e) => up('date_creation', e.target.value)} className={inputCls} />
