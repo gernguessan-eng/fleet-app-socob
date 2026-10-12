@@ -12,6 +12,7 @@ import {
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList,
 } from 'recharts';
+import SearchableSelect from './SearchableSelect';
 
 const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 const KPI_PRINT_HIDDEN_KEY = 'parc_auto_dashboard_kpi_print_hidden';
@@ -472,7 +473,7 @@ export default function Dashboard() {
         </div>
         <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-4 border border-slate-200">
           <Filter className="h-4 w-4 text-slate-500 flex-shrink-0 mt-5" />
-          <label className="block text-xs font-medium text-slate-600">Département<select value={filterDept} onChange={e => setFilterDept(e.target.value)} className="mt-1 block w-full min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"><option value="">Tous</option>{departments.map(d => <option key={d} value={d}>{d}</option>)}</select></label>
+          <label className="block text-xs font-medium text-slate-600">Département<SearchableSelect value={filterDept} onChange={setFilterDept} aria-label="Département" emptyLabel="Tous" options={departments.map(d => ({ value: d, label: d }))} className="mt-1 w-full min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Période du<input type="date" value={filterPeriodFrom} onChange={e => setFilterPeriodFrom(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">au<input type="date" value={filterPeriodTo} onChange={e => setFilterPeriodTo(e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           {isFiltered && <button onClick={() => { setFilterDept(''); setFilterPeriodFrom(''); setFilterPeriodTo(''); }} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 mt-5">Réinitialiser</button>}
