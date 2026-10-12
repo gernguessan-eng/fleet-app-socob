@@ -15,6 +15,7 @@ import DeleteGuardButton from './DeleteGuardButton';
 import DriverDetailModal from './DriverDetailModal';
 import SuggestInput from './SuggestInput';
 import { uniqueValues } from '../utils/suggestions';
+import SearchableSelect from './SearchableSelect';
 
 function fmtDate(d: string) {
   if (!d) return '—';
@@ -135,10 +136,7 @@ function DriverFormModal({ driver, vehicles, knownFonctions, onSave, onClose }: 
             {renderDocumentUpload('Permis de conduire (verso)', 'permis_verso_url')}
           </div>
           <label className="block text-xs font-medium text-slate-600">Véhicule affecté
-            <select value={f.vehicule_affecte_id} onChange={e => up('vehicule_affecte_id', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              <option value="">Sélectionner un véhicule ou laisser vide...</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-            </select>
+            <SearchableSelect value={f.vehicule_affecte_id} onChange={v => up('vehicule_affecte_id', v)} emptyLabel="Aucun véhicule (laisser vide)" placeholder="Sélectionner un véhicule ou laisser vide..." options={vehicles.map(v => ({ value: v.id, label: v.label }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Statut
             <select value={f.statut} onChange={e => up('statut', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
@@ -227,20 +225,13 @@ function MissionFormModal({ mission, drivers, vehicles, existingMissions, onSave
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 p-6">
           {error && <div className="col-span-2 rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700"><AlertTriangle className="inline h-4 w-4 mr-1" />{error}</div>}
           <label className="block text-xs font-medium text-slate-600">Chauffeur
-            <select required value={f.driverId} onChange={e => up('driverId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              <option value="">Sélectionner le chauffeur concerné...</option>
-              {availableDrivers.map(d => <option key={d.id} value={d.id}>{d.prenom} {d.nom} ({d.statut})</option>)}
-              {availableDrivers.length === 0 && <option value="" disabled>Aucun chauffeur disponible</option>}
-            </select>
+            <SearchableSelect required value={f.driverId} onChange={v => up('driverId', v)} placeholder="Sélectionner le chauffeur concerné..." noOptionsText="Aucun chauffeur disponible" options={availableDrivers.map(d => ({ value: d.id, label: `${d.prenom} ${d.nom} (${d.statut})` }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             {drivers.filter(d => d.statut !== 'Disponible' && !(mission && d.id === mission.driverId)).length > 0 && (
               <p className="mt-1 text-[10px] text-amber-600">{drivers.filter(d => d.statut !== 'Disponible').length} chauffeur(s) non disponible(s) masqué(s)</p>
             )}
           </label>
           <label className="block text-xs font-medium text-slate-600">Véhicule
-            <select required value={f.vehicleId} onChange={e => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              <option value="">Sélectionner le véhicule utilisé...</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-            </select>
+            <SearchableSelect required value={f.vehicleId} onChange={v => up('vehicleId', v)} placeholder="Sélectionner le véhicule utilisé..." options={vehicles.map(v => ({ value: v.id, label: v.label }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <div className="col-span-2">{inp('Titre de la mission', 'titre', 'text', 'Ex: Livraison Yamoussoukro, Visite client Bouaké...', sg.titres)}</div>
           {inp('Lieu de départ', 'lieu_depart', 'text', 'Ex: Abidjan, Plateau', sg.lieux)}{inp("Lieu d'arrivée", 'lieu_arrivee', 'text', 'Ex: Yamoussoukro', sg.lieux)}
@@ -317,10 +308,7 @@ function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave,
         <form onSubmit={handleSubmit} className="space-y-3 p-6">
           {error && <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700"><AlertTriangle className="inline h-4 w-4 mr-1" />{error}</div>}
           <label className="block text-xs font-medium text-slate-600">Chauffeur
-            <select required value={f.driverId} onChange={e => up('driverId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              <option value="">Sélectionner le chauffeur à planifier...</option>
-              {availableDrivers.map(d => <option key={d.id} value={d.id}>{d.prenom} {d.nom}{isMissionType ? ` (${d.statut})` : ''}</option>)}
-            </select>
+            <SearchableSelect required value={f.driverId} onChange={v => up('driverId', v)} placeholder="Sélectionner le chauffeur à planifier..." options={availableDrivers.map(d => ({ value: d.id, label: `${d.prenom} ${d.nom}${isMissionType ? ` (${d.statut})` : ''}` }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             {isMissionType && drivers.filter(d => d.statut !== 'Disponible' && !(event && d.id === event.driverId)).length > 0 && (
               <p className="mt-1 text-[10px] text-amber-600">{drivers.filter(d => d.statut !== 'Disponible').length} chauffeur(s) non disponible(s) masqué(s)</p>
             )}
@@ -336,10 +324,7 @@ function PlanningFormModal({ event, drivers, vehicles, existingPlanning, onSave,
               </select>
             </label>
             <label className="block text-xs font-medium text-slate-600">Véhicule
-              <select value={f.vehicleId} onChange={e => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                <option value="">Sélectionner un véhicule ou laisser vide...</option>
-                {vehicles.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-              </select>
+              <SearchableSelect value={f.vehicleId} onChange={v => up('vehicleId', v)} emptyLabel="Aucun véhicule (laisser vide)" placeholder="Sélectionner un véhicule ou laisser vide..." options={vehicles.map(v => ({ value: v.id, label: v.label }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
