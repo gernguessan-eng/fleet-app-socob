@@ -11,6 +11,7 @@ import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { ExpenseCategory, ExpenseRecord } from '../types';
 import SuggestInput from './SuggestInput';
 import { uniqueValues } from '../utils/suggestions';
+import SearchableSelect from './SearchableSelect';
 
 const categoryOptions: ExpenseCategory[] = [
   'Carburant', 'Entretien', 'Réparation', 'Assurance', 'Vignette',
@@ -155,9 +156,7 @@ export default function Expenses() {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher..." className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
               </div>
-              <select value={filterVehicle} onChange={(e) => setFilterVehicle(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                <option value="">Tous les véhicules</option><option value="__sans_vehicule__">Sans véhicule</option>{vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}
-              </select>
+              <SearchableSelect value={filterVehicle} onChange={setFilterVehicle} aria-label="Filtrer par véhicule" emptyLabel="Tous les véhicules" options={[{ value: '__sans_vehicule__', label: 'Sans véhicule' }, ...vehicles.map(v => ({ value: v.id, label: v.numero_immatriculation, hint: `${v.marque} ${v.type_commercial}`.trim() }))]} className="min-w-[200px] rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
               <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
                 <option value="">Toutes catégories</option>{categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -287,11 +286,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, kn
         </div>
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 p-6">
           <label className="col-span-2 block text-xs font-medium text-slate-600">Véhicule
-            <select required value={f.vehicleId} onChange={(e) => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              <option value="">Sélectionner un véhicule</option>
-              <option value="__autre__">Autre (non lié à un véhicule)</option>
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation} - {v.marque} {v.type_commercial}</option>)}
-            </select>
+            <SearchableSelect required value={f.vehicleId} onChange={v => up('vehicleId', v)} placeholder="Sélectionner un véhicule" options={[{ value: '__autre__', label: 'Autre (non lié à un véhicule)' }, ...vehicles.map(v => ({ value: v.id, label: `${v.numero_immatriculation} - ${v.marque} ${v.type_commercial}` }))]} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Date<input type="date" required value={f.date} onChange={(e) => setF(p => ({ ...p, date: e.target.value, date_entretien: p.categorie === 'Entretien' ? e.target.value : p.date_entretien }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Catégorie
