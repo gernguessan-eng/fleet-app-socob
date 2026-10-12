@@ -391,11 +391,33 @@ export default function Dashboard() {
   }, [fv]);
 
   // Alertes
-  const upcomingAlerts = useMemo(() => {
-    const soon = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    return fv.filter(v => (v.date_assurance && new Date(v.date_assurance) <= soon) || (v.date_vignette && new Date(v.date_vignette) <= soon) || (v.validite_carte_transport && new Date(v.validite_carte_transport) <= soon) || (v.validite_patente && new Date(v.validite_patente) <= soon) || (v.validite_carte_stationnement && new Date(v.validite_carte_stationnement) <= soon)).slice(0, 8);
+  // Échéances administratives : une ligne par document (assurance, vignette…), échues ET à venir
+  // dans les 30 jours. Les véhicules réformés sont exclus (leurs documents n'ont plus à être suivis).
+  const echeanceRows = useMemo(() => {
+    const docs: { key: 'date_assurance' | 'date_vignette' | 'validite_carte_transport' | 'validite_patente' | 'validite_carte_stationnement'; label: string }[] = [
+      { key: 'date_assurance', label: 'Assurance' },
+      { key: 'date_vignette', label: 'Vignette' },
+      { key: 'validite_carte_transport', label: 'Carte de transport' },
+      { key: 'validite_patente', label: 'Patente' },
+      { key: 'validite_carte_stationnement', label: 'Carte de stationnement' },
+    ];
+    const t = new Date(); const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    // Jours entre aujourd'hui et la date (négatif = déjà échue) ; date lue en heure locale pour éviter tout décalage
+    const daysUntil = (d?: string): number | null => {
+      if (!d) return null;
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+      const due = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d);
+      if (isNaN(due.getTime())) return null;
+      return Math.round((due.getTime() - today.getTime()) / 86400000);
+    };
+    const rows: { vehicle: Vehicle; doc: string; date: string; days: number }[] = [];
+    fv.filter(v => v.statut !== 'Réformé').forEach(v => docs.forEach(d => {
+      const date = v[d.key]; const days = daysUntil(date);
+      if (days !== null && days <= 30) rows.push({ vehicle: v, doc: d.label, date: date as string, days });
+    }));
+    return rows.sort((a, b) => a.days - b.days);
   }, [fv]);
-  const maintenanceAlerts = fv.map(vehicle => ({ vehicle, forecast: getVehicleMaintenanceForecast(vehicle, expenseRecords) })).filter(({ forecast }) => ['critical', 'warning', 'missing'].includes(forecast.alertLevel)).sort((a, b) => { const p = { critical: 0, warning: 1, missing: 2, none: 3 }; return p[a.forecast.alertLevel] - p[b.forecast.alertLevel]; }).slice(0, 8);
+  const maintenanceAlerts = fv.map(vehicle => ({ vehicle, forecast: getVehicleMaintenanceForecast(vehicle, expenseRecords) })).filter(({ forecast }) => ['critical', 'warning', 'missing'].includes(forecast.alertLevel)).sort((a, b) => { const p = { critical: 0, warning: 1, missing: 2, none: 3 }; return p[a.forecast.alertLevel] - p[b.forecast.alertLevel]; });
   const zoneDistribution = useMemo(() => { const zones = ['Nord', 'Sud', 'Est', 'Centre', 'Ouest'] as const; const c: Record<string, number> = { Nord: 0, Sud: 0, Est: 0, Centre: 0, Ouest: 0 }; fv.forEach(v => { if (v.zone_affectation && c[v.zone_affectation] !== undefined) c[v.zone_affectation]++; }); return zones.map(z => ({ name: z, value: c[z] })); }, [fv]);
   const brandDistribution = useMemo(() => { const m = new Map<string, number>(); fv.forEach(v => m.set(v.marque, (m.get(v.marque) || 0) + 1)); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fv]);
   const expenseCategoryDistribution = useMemo(() => { const m = new Map<string, number>(); fe.forEach(e => m.set(e.categorie, (m.get(e.categorie) || 0) + e.montant)); return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }, [fe]);
@@ -760,20 +782,43 @@ export default function Dashboard() {
       {/* Alertes */}
       <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Alertes entretiens') ? 'print:hidden' : ''}`}>
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800"><Wrench className="h-5 w-5 text-amber-500" />Alertes entretiens</h3>
-        {maintenanceAlerts.length > 0 ? <div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200"><thead className="bg-slate-50"><tr>{['Véhicule', 'Dernier', 'Prochain', 'Échéance', 'Statut'].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{maintenanceAlerts.map(({ vehicle, forecast }) => <tr key={vehicle.id} className="hover:bg-slate-50"><td className="px-4 py-3"><Link to="/vehicules" className="text-sm font-semibold text-emerald-600">{vehicle.numero_immatriculation}</Link><p className="text-xs text-slate-500">{vehicle.marque}</p></td><td className="px-4 py-3 text-sm text-slate-600">{forecast.hasHistory ? `${forecast.lastMaintenanceKm.toLocaleString('fr-FR')} km` : '—'}</td><td className="px-4 py-3 text-sm text-slate-600">{forecast.hasHistory ? `${forecast.nextMaintenanceKm.toLocaleString('fr-FR')} km` : '—'}</td><td className="px-4 py-3 text-sm text-slate-600">{forecast.estimatedNextDate ? new Date(forecast.estimatedNextDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td><td className="px-4 py-3 text-center"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${forecast.alertLevel === 'critical' ? 'bg-red-100 text-red-700' : forecast.alertLevel === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{forecast.alertLevel === 'critical' ? 'Urgent' : forecast.alertLevel === 'warning' ? `${forecast.remainingKm.toLocaleString('fr-FR')} km` : '—'}</span></td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-400">Aucune alerte</p>}
+        {maintenanceAlerts.length > 0 ? <div className="max-h-[560px] overflow-auto print:max-h-none print:overflow-visible"><table className="min-w-full divide-y divide-slate-200"><thead className="sticky top-0 z-10 bg-slate-50"><tr>{['Véhicule', 'Dernier', 'Prochain', 'Échéance', 'Statut'].map(h => <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{maintenanceAlerts.map(({ vehicle, forecast }) => <tr key={vehicle.id} className="hover:bg-slate-50"><td className="px-4 py-2"><Link to="/vehicules" className="text-sm font-semibold text-emerald-600">{vehicle.numero_immatriculation}</Link><p className="text-xs text-slate-500">{vehicle.marque}</p></td><td className="px-4 py-2 text-sm text-slate-600">{forecast.hasHistory ? `${forecast.lastMaintenanceKm.toLocaleString('fr-FR')} km` : '—'}</td><td className="px-4 py-2 text-sm text-slate-600">{forecast.hasHistory ? `${forecast.nextMaintenanceKm.toLocaleString('fr-FR')} km` : '—'}</td><td className="px-4 py-2 text-sm text-slate-600">{forecast.estimatedNextDate ? new Date(forecast.estimatedNextDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td><td className="px-4 py-2 text-center"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${forecast.alertLevel === 'critical' ? 'bg-red-100 text-red-700' : forecast.alertLevel === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{forecast.alertLevel === 'critical' ? 'Urgent' : forecast.alertLevel === 'warning' ? `${forecast.remainingKm.toLocaleString('fr-FR')} km` : '—'}</span></td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-400">Aucune alerte</p>}
       </div>
 
       <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Alertes échéances') ? 'print:hidden' : ''}`}>
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800"><Calendar className="h-5 w-5 text-amber-500" />Alertes échéances</h3>
-        {upcomingAlerts.length > 0 ? <div className="space-y-3">{upcomingAlerts.map(v => {
-          const soon = new Date(Date.now() + 30 * 86400000); const a: string[] = [];
-          if (v.date_assurance && new Date(v.date_assurance) <= soon) a.push('Assurance');
-          if (v.date_vignette && new Date(v.date_vignette) <= soon) a.push('Vignette');
-          if (v.validite_carte_transport && new Date(v.validite_carte_transport) <= soon) a.push('Carte transport');
-          if (v.validite_patente && new Date(v.validite_patente) <= soon) a.push('Patente');
-          if (v.validite_carte_stationnement && new Date(v.validite_carte_stationnement) <= soon) a.push('Stationnement');
-          return <Link key={v.id} to={`/vehicule/${v.id}`} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-3 hover:bg-amber-50 hover:border-amber-200"><div className="flex items-center gap-3"><AlertTriangle className="h-5 w-5 text-amber-500" /><div><p className="text-sm font-semibold text-slate-800">{v.numero_immatriculation}</p><p className="text-xs text-slate-500">{v.marque} {v.type_commercial}</p></div></div><div className="flex flex-wrap justify-end gap-1">{a.map(x => <span key={x} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">{x}</span>)}</div></Link>;
-        })}</div> : <p className="text-sm text-slate-400">Aucune alerte ✓</p>}
+        <h3 className="mb-4 flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-800"><Calendar className="h-5 w-5 text-amber-500" />Alertes échéances
+          {echeanceRows.length > 0 && (
+            <span className="ml-auto flex gap-2 text-xs font-medium">
+              <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-red-700">{echeanceRows.filter(r => r.days < 0).length} échue(s)</span>
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-700">{echeanceRows.filter(r => r.days >= 0).length} à venir (30 j)</span>
+            </span>
+          )}
+        </h3>
+        {echeanceRows.length > 0 ? (
+          <div className="max-h-[560px] overflow-auto print:max-h-none print:overflow-visible">
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="sticky top-0 z-10 bg-slate-50">
+                <tr>{['Véhicule', 'Document', 'Échéance', 'Durée'].map(h => <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {echeanceRows.map(r => {
+                  const expired = r.days < 0;
+                  const plural = Math.abs(r.days) > 1 ? 's' : '';
+                  const label = expired ? `Expirée depuis ${-r.days} jour${plural}` : r.days === 0 ? "Échéance aujourd'hui" : `Dans ${r.days} jour${plural}`;
+                  const tone = expired ? 'bg-red-100 text-red-700' : r.days <= 7 ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700';
+                  return (
+                    <tr key={`${r.vehicle.id}-${r.doc}`} className={`hover:bg-amber-50 ${expired ? 'bg-red-50/40' : ''}`}>
+                      <td className="px-4 py-2"><Link to={`/vehicule/${r.vehicle.id}`} className="text-sm font-semibold text-emerald-600">{r.vehicle.numero_immatriculation}</Link><p className="text-xs text-slate-500">{r.vehicle.marque} {r.vehicle.type_commercial}</p></td>
+                      <td className="px-4 py-2 text-sm text-slate-700">{r.doc}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-sm text-slate-600">{new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      <td className="px-4 py-2"><span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${tone}`}>{label}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-sm text-slate-400">Aucune alerte ✓</p>}
       </div>
       {/* ── Détail d'une zone (Répartition de la flotte / Zone de travail ou Cartographie) ── */}
       {detail && (detail.kind === 'zone-travail' || detail.kind === 'zone-carto') && (() => {
