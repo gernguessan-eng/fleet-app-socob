@@ -14,6 +14,7 @@ import {
   Car, Shield, DollarSign, X, Eye, Upload, Download, Info, HeartPulse, Percent, MapPinned,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
+import SearchableSelect from './SearchableSelect';
 
 const STATUT_COLORS: Record<string, string> = {
   Déclaré: 'bg-blue-100 text-blue-700',
@@ -428,9 +429,7 @@ function SinistreFormModal({ sinistre, vehicles, onSave, onClose }: SinistreForm
         </div>
         <form onSubmit={e => { e.preventDefault(); onSave(f, sinistre?.id); }} className="grid grid-cols-2 gap-4 p-6">
           <label className="block text-xs font-medium text-slate-600">Véhicule
-            <select value={f.vehicleId} onChange={e => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-              {vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}
-            </select>
+            <SearchableSelect value={f.vehicleId} onChange={v => up('vehicleId', v)} placeholder="Sélectionner un véhicule" options={vehicles.map(v => ({ value: v.id, label: v.numero_immatriculation }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
           <label className="block text-xs font-medium text-slate-600">Date du sinistre
             <input type="date" value={f.date_sinistre} onChange={e => up('date_sinistre', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
