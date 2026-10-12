@@ -14,6 +14,7 @@ import DeleteGuardButton from './DeleteGuardButton';
 import { useAuth } from '../store/AuthContext';
 import { useDeletionRequests } from '../store/DeletionRequestsStore';
 import { getVehicleMaintenanceForecast } from '../utils/maintenance';
+import SearchableSelect from './SearchableSelect';
 
 function fmtMoney(v: number) {
   if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + ' M FCFA';
@@ -364,17 +365,15 @@ export default function VehicleList() {
           {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         {facetState.map((f) => (
-          <select
+          <SearchableSelect
             key={f.id}
             aria-label={f.label}
             value={f.shown}
-            onChange={(e) => { f.set(e.target.value); setCurrentPage(1); }}
-            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            <option value="">{f.label}</option>
-            {f.o.values.map((x) => <option key={x} value={x}>{x}</option>)}
-            {f.o.hasEmpty && <option value={NONE}>Non renseigné</option>}
-          </select>
+            onChange={(v) => { f.set(v); setCurrentPage(1); }}
+            emptyLabel={f.label}
+            options={[...f.o.values.map((x) => ({ value: x, label: x })), ...(f.o.hasEmpty ? [{ value: NONE, label: 'Non renseigné' }] : [])]}
+            className="min-w-[190px] rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
         ))}
         {anyFilter && (
           <button onClick={resetFilters} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50">
