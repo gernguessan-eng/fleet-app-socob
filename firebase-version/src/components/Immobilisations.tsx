@@ -5,6 +5,7 @@ import { Plus, Printer, Search, Pencil, X, AlertTriangle, Upload, Info } from 'l
 import DeleteGuardButton from './DeleteGuardButton';
 import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { ImmobilisationRecord } from '../types/immobilisations';
+import SearchableSelect from './SearchableSelect';
 
 export type { ImmobilisationRecord };
 
@@ -178,7 +179,7 @@ function ImmobilisationFormModal({ record, vehicles, knownGarages, onSave, onClo
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4"><h3 className="text-lg font-bold">{record ? 'Modifier' : 'Nouvelle immobilisation'}</h3><button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="h-5 w-5" /></button></div>
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 p-6">
-          <label className="block text-xs font-medium text-slate-600">Véhicule<select value={f.vehicleId} onChange={e => up('vehicleId', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">{vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation}</option>)}</select></label>
+          <label className="block text-xs font-medium text-slate-600">Véhicule<SearchableSelect value={f.vehicleId} onChange={v => up('vehicleId', v)} placeholder="Sélectionner un véhicule" options={vehicles.map(v => ({ value: v.id, label: v.numero_immatriculation }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Garage<input list="immob-garages" autoComplete="off" value={f.garage} onChange={e => up('garage', e.target.value)} placeholder="Nom du garage…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /><datalist id="immob-garages">{knownGarages.map(g => <option key={g} value={g} />)}</datalist></label>
           <label className="block text-xs font-medium text-slate-600">Date d'entrée<input type="date" value={f.date_entree} onChange={e => up('date_entree', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Date sortie prévue<input type="date" value={f.date_sortie_prevue} onChange={e => up('date_sortie_prevue', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
