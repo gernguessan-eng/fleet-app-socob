@@ -7,6 +7,7 @@ import { X, FileImage } from 'lucide-react';
 import { uploadVehicleImage, validateImageFile } from '../utils/uploadImage';
 import SuggestInput from './SuggestInput';
 import { uniqueValues } from '../utils/suggestions';
+import SearchableSelect from './SearchableSelect';
 
 interface VehicleFormProps {
   vehicle: Vehicle | undefined;
@@ -213,16 +214,13 @@ export default function VehicleForm({ vehicle, onSave, onClose }: VehicleFormPro
     <div>
       <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
       {options ? (
-        <select
+        <SearchableSelect
           value={(formData as any)[field] || ''}
-          onChange={(e) => handleChange(field, e.target.value)}
+          onChange={(v) => handleChange(field, v)}
+          placeholder="Sélectionner..."
+          options={options}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-        >
-          <option value="" disabled>Sélectionner...</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        />
       ) : (
         <SuggestInput
           suggestions={type === 'text' ? (suggestionsByField[field] || []) : []}
