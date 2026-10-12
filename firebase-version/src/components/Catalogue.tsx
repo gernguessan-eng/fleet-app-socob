@@ -13,6 +13,7 @@ import {
   COMPARATIF_COLONNES_STORAGE_KEY, SAMPLE_COMPARATIF_COLONNES,
 } from '../types/catalogue';
 import SuggestInput from './SuggestInput';
+import SearchableSelect from './SearchableSelect';
 
 function loadColonnes(): string[] {
   try { const r = localStorage.getItem(COMPARATIF_COLONNES_STORAGE_KEY); return r ? JSON.parse(r) : SAMPLE_COMPARATIF_COLONNES; } catch { return SAMPLE_COMPARATIF_COLONNES; }
@@ -325,9 +326,7 @@ export default function Catalogue() {
                 <div className="mb-4 flex items-center justify-between gap-2 flex-wrap">
                   <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800"><Package className="h-4 w-4 text-emerald-500" />Évolution du prix d'une pièce</h3>
                   {pieces.length > 0 && (
-                    <select value={chartPiece?.id || ''} onChange={e => setSelectedChartPieceId(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none">
-                      {pieces.map(p => <option key={p.id} value={p.id}>{p.nom_piece}</option>)}
-                    </select>
+                    <SearchableSelect value={chartPiece?.id || ''} onChange={setSelectedChartPieceId} aria-label="Pièce" options={pieces.map(p => ({ value: p.id, label: p.nom_piece }))} className="min-w-[180px] rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-emerald-500 focus:outline-none" />
                   )}
                 </div>
                 {chartData.length > 1 ? (
