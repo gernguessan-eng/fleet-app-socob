@@ -14,6 +14,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { detectIvoryCoastZoneFromText, getZoneMeta } from '../utils/civZones';
 import SuggestInput from './SuggestInput';
 import { uniqueValues } from '../utils/suggestions';
+import SearchableSelect from './SearchableSelect';
 
 const DefaultIcon = L.icon({
   iconUrl: markerIcon,
@@ -236,11 +237,7 @@ export default function GeolocTrajets() {
 
             <label className="block text-xs font-medium text-slate-600">
               Véhicule
-              <select value={selectedVehicleId} onChange={e => setSelectedVehicleId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                <option value="">Sélectionner…</option>
-                {vehicles.map(v => <option key={v.id} value={v.id}>{v.numero_immatriculation} — {v.marque}</option>)}
-              </select>
+              <SearchableSelect value={selectedVehicleId} onChange={setSelectedVehicleId} emptyLabel="Aucun véhicule" placeholder="Sélectionner…" options={vehicles.map(v => ({ value: v.id, label: `${v.numero_immatriculation} — ${v.marque}` }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </label>
 
             {selectedVehicle && (
