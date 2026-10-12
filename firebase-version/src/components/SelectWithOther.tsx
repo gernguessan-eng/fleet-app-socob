@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SearchableSelect from './SearchableSelect';
 
 interface Props {
   value: string;
@@ -25,18 +26,16 @@ export default function SelectWithOther({ value, onChange, options, placeholder,
 
   return (
     <>
-      <select
+      <SearchableSelect
         value={selectValue}
-        onChange={(e) => {
-          if (e.target.value === '__autre__') { setOtherMode(true); onChange(''); }
-          else { setOtherMode(false); onChange(e.target.value); }
+        onChange={(v) => {
+          if (v === '__autre__') { setOtherMode(true); onChange(''); }
+          else { setOtherMode(false); onChange(v); }
         }}
+        emptyLabel={placeholder}
+        options={[...options.map((o) => ({ value: o, label: o })), { value: '__autre__', label: 'Autre…' }]}
         className={inputCls}
-      >
-        {placeholder !== undefined && <option value="">{placeholder}</option>}
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-        <option value="__autre__">Autre…</option>
-      </select>
+      />
       {otherMode && (
         <input
           value={value === 'Autre' ? '' : value}
