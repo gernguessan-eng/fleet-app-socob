@@ -7,8 +7,9 @@ import { getVehicleMaintenanceForecast } from '../utils/maintenance';
 import IvoryCoastZoneMap from './IvoryCoastZoneMap';
 import {
   Car, CheckCircle2, Wrench, AlertTriangle, TrendingUp, Calendar,
-  DollarSign, Printer, Shield, Filter, ParkingCircle, Activity, Clock, Settings2, X, ExternalLink, ChevronRight,
+  DollarSign, Printer, Shield, Filter, ParkingCircle, Activity, Clock, Settings2, ExternalLink, ChevronRight,
 } from 'lucide-react';
+import KpiModal from './KpiModal';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList,
 } from 'recharts';
@@ -51,26 +52,9 @@ function daysSince(d?: string) {
   return Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 86400000));
 }
 
-function KpiModal({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden" onClick={onClose}>
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-            {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
-          </div>
-          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-700" title="Fermer"><X className="h-5 w-5" /></button>
-        </div>
-        <div className="space-y-5 p-6">{children}</div>
-      </div>
-    </div>
-  );
+/** Montant affiché en abrégé (« 1.2 M FCFA ») mais exporté vers Excel avec sa valeur exacte. */
+function Amt({ n }: { n: number }) {
+  return <span data-xl={Math.round(n)}>{fmtKPI(n)}</span>;
 }
 
 type ImmoLite = { id: string; vehicleId: string; garage: string; date_entree: string; date_sortie_prevue: string; travaux: string; statut: string; cout_estime: number };
@@ -159,7 +143,7 @@ function ZoneVehicleTable({ list, driverByVehicle, costByVehicle, sinCountByVehi
               <td className="px-3 py-2">{driverByVehicle.get(v.id) || '—'}</td>
               <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STAT[v.statut] || 'bg-slate-100 text-slate-600'}`}>{v.statut}</span></td>
               <td className="px-3 py-2 text-right whitespace-nowrap">{(v.kilometrage || 0).toLocaleString('fr-FR')}</td>
-              <td className="px-3 py-2 text-right whitespace-nowrap">{fmtKPI(costByVehicle.get(v.id) || 0)}</td>
+              <td className="px-3 py-2 text-right whitespace-nowrap"><Amt n={costByVehicle.get(v.id) || 0} /></td>
               <td className="px-3 py-2 text-right">{sinCountByVehicle.get(v.id) || 0}</td>
               <td className="px-3 py-2"><button onClick={() => onOpen(v.id)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-white">Fiche <ChevronRight className="h-3 w-3" /></button></td>
             </tr>
@@ -187,7 +171,7 @@ function SinistreTable({ list, vehicleLabel }: { list: SinFull[]; vehicleLabel: 
               <td className="px-3 py-2">{[x.lieu, x.commune].filter(Boolean).join(' — ') || '—'}</td>
               <td className="px-3 py-2">{x.responsabilite || '—'}{x.responsable ? <p className="text-slate-500">{x.responsable}</p> : null}</td>
               <td className="px-3 py-2">{x.assureur || '—'}{x.numero_dossier ? <p className="text-slate-500">N° {x.numero_dossier}</p> : null}</td>
-              <td className="px-3 py-2 text-right whitespace-nowrap">{fmtKPI(x.cout_final || x.cout_estime || 0)}{x.cout_final ? <p className="text-[10px] text-slate-400">final</p> : x.cout_estime ? <p className="text-[10px] text-slate-400">estimé</p> : null}</td>
+              <td className="px-3 py-2 text-right whitespace-nowrap"><Amt n={x.cout_final || x.cout_estime || 0} />{x.cout_final ? <p className="text-[10px] text-slate-400">final</p> : x.cout_estime ? <p className="text-[10px] text-slate-400">estimé</p> : null}</td>
               <td className="px-3 py-2">{x.statut}</td>
             </tr>
           ))}
@@ -217,7 +201,7 @@ function ImmoTable({ list, vehicleLabel }: { list: ImmoFull[]; vehicleLabel: (id
                 <td className="px-3 py-2 whitespace-nowrap">{fin ? fmtDateFr(fin) : <span className="text-slate-500">prévue {fmtDateFr(i.date_sortie_prevue)}</span>}</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">{duree} j</td>
                 <td className="px-3 py-2">{i.travaux || '—'}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">{fmtKPI(i.cout_final || i.cout_estime || 0)}{i.cout_final ? <p className="text-[10px] text-slate-400">final</p> : i.cout_estime ? <p className="text-[10px] text-slate-400">estimé</p> : null}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap"><Amt n={i.cout_final || i.cout_estime || 0} />{i.cout_final ? <p className="text-[10px] text-slate-400">final</p> : i.cout_estime ? <p className="text-[10px] text-slate-400">estimé</p> : null}</td>
                 <td className="px-3 py-2">{i.statut}</td>
               </tr>
             );
@@ -228,10 +212,15 @@ function ImmoTable({ list, vehicleLabel }: { list: ImmoFull[]; vehicleLabel: (id
   );
 }
 
-function MiniStats({ items }: { items: { l: string; v: string | number; c: string }[] }) {
+function MiniStats({ items }: { items: { l: string; v: string | number; c: string; n?: number }[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {items.map(k => <div key={k.l} className={`rounded-lg p-3 ${k.c}`}><p className="text-[11px] opacity-80">{k.l}</p><p className="text-lg font-bold">{k.v}</p></div>)}
+    <div data-xl-stats className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {items.map(k => (
+        <div key={k.l} data-xl-item className={`rounded-lg p-3 ${k.c}`}>
+          <p data-xl-l className="text-[11px] opacity-80">{k.l}</p>
+          <p data-xl-v {...(k.n !== undefined ? { 'data-xl': Math.round(k.n) } : {})} className="text-lg font-bold">{k.v}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -841,7 +830,7 @@ export default function Dashboard() {
             <MiniStats items={[
               { l: 'Actifs', v: list.filter(v => v.statut === 'Actif').length, c: 'bg-emerald-50 text-emerald-700' },
               { l: 'En maintenance / HS', v: list.filter(v => v.statut === 'En maintenance' || v.statut === 'Hors service').length, c: 'bg-amber-50 text-amber-700' },
-              { l: 'Dépenses (période)', v: fmtKPI(totalCost), c: 'bg-slate-50 text-slate-800' },
+              { l: 'Dépenses (période)', v: fmtKPI(totalCost), n: totalCost, c: 'bg-slate-50 text-slate-800' },
               { l: 'Sinistres (période)', v: nbSin, c: 'bg-red-50 text-red-700' },
             ]} />
             <ZoneVehicleTable list={list} driverByVehicle={driverByVehicle} costByVehicle={costByVehicle} sinCountByVehicle={sinCountByVehicle} onOpen={id => navigate(`/vehicule/${id}`)} />
@@ -879,16 +868,16 @@ export default function Dashboard() {
             onClose={() => setDetail(null)}
           >
             <MiniStats items={[
-              { l: 'Total dépensé', v: fmtKPI(total), c: 'bg-emerald-50 text-emerald-700' },
+              { l: 'Total dépensé', v: fmtKPI(total), n: total, c: 'bg-emerald-50 text-emerald-700' },
               { l: 'Nombre de dépenses', v: list.length, c: 'bg-slate-50 text-slate-800' },
               { l: 'Véhicules concernés', v: byVeh.size, c: 'bg-indigo-50 text-indigo-700' },
-              { l: 'Moyenne / véhicule', v: byVeh.size > 0 ? fmtKPI(Math.round(total / byVeh.size)) : '—', c: 'bg-amber-50 text-amber-700' },
+              { l: 'Moyenne / véhicule', v: byVeh.size > 0 ? fmtKPI(Math.round(total / byVeh.size)) : '—', n: byVeh.size > 0 ? Math.round(total / byVeh.size) : undefined, c: 'bg-amber-50 text-amber-700' },
             ]} />
             {cats.length > 0 && (
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Par catégorie</h4>
-                <div className="flex flex-wrap gap-2">
-                  {cats.map(([c, x]) => <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-700"><b>{c}</b> · {x.n} · {fmtKPI(x.v)} ({total > 0 ? Math.round((x.v / total) * 100) : 0}%)</span>)}
+                <div data-xl-list="Par catégorie" data-xl-cols="Catégorie|Nombre|Montant (part)" className="flex flex-wrap gap-2">
+                  {cats.map(([c, x]) => <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-700"><b>{c}</b> · {x.n} · <Amt n={x.v} /> ({total > 0 ? Math.round((x.v / total) * 100) : 0}%)</span>)}
                 </div>
               </div>
             )}
@@ -904,7 +893,7 @@ export default function Dashboard() {
                           <td className="px-3 py-2 font-semibold text-slate-800">{vehLabel(vid)}</td>
                           <td className="px-3 py-2">{vehicleById.get(vid)?.affectation || '—'}</td>
                           <td className="px-3 py-2 text-right">{x.n}</td>
-                          <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{fmtKPI(x.v)}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap font-medium"><Amt n={x.v} /></td>
                           <td className="px-3 py-2">{vehicleById.has(vid) && <button onClick={() => navigate(`/vehicule/${vid}`)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-white">Fiche <ChevronRight className="h-3 w-3" /></button>}</td>
                         </tr>
                       ))}
@@ -928,16 +917,16 @@ export default function Dashboard() {
                           <td className="px-3 py-2">{e.libelle || '—'}{e.notes ? <p className="text-slate-400">{e.notes}</p> : null}</td>
                           <td className="px-3 py-2">{e.fournisseur || '—'}</td>
                           <td className="px-3 py-2">{e.numero_piece || '—'}</td>
-                          <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{fmtKPI(e.montant)}</td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap font-medium"><Amt n={e.montant} /></td>
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t-2 border-slate-300 bg-slate-100"><tr><td colSpan={6} className="px-3 py-2 text-right font-bold text-slate-900">Total</td><td className="px-3 py-2 text-right whitespace-nowrap font-extrabold text-slate-900">{fmtKPI(total)}</td></tr></tfoot>
+                    <tfoot className="border-t-2 border-slate-300 bg-slate-100"><tr><td colSpan={6} className="px-3 py-2 text-right font-bold text-slate-900">Total</td><td className="px-3 py-2 text-right whitespace-nowrap font-extrabold text-slate-900"><Amt n={total} /></td></tr></tfoot>
                   </table>
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="kpi-no-print flex flex-wrap items-center gap-3">
               <button onClick={openExpenses} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"><ExternalLink className="h-4 w-4" /> Ouvrir le menu Dépenses</button>
               <p className="text-[11px] text-slate-400">Le menu Dépenses n'a pas de filtre par zone : il s'ouvre sur la même période, toutes zones confondues.</p>
             </div>
@@ -963,7 +952,7 @@ export default function Dashboard() {
             <MiniStats items={[
               { l: 'Sinistres', v: list.length, c: 'bg-red-50 text-red-700' },
               { l: 'Véhicules touchés', v: new Set(list.map(x => x.vehicleId)).size, c: 'bg-slate-50 text-slate-800' },
-              { l: 'Coût cumulé', v: fmtKPI(coutOf(list)), c: 'bg-indigo-50 text-indigo-700' },
+              { l: 'Coût cumulé', v: fmtKPI(coutOf(list)), n: coutOf(list), c: 'bg-indigo-50 text-indigo-700' },
               { l: 'Par statut', v: Array.from(parStatut.entries()).map(([k, v]) => `${k} : ${v}`).join(' · ') || '—', c: 'bg-amber-50 text-amber-700 [&_p:last-child]:text-xs' },
             ]} />
             <SinistreTable list={list} vehicleLabel={vehicleLabel} />
@@ -986,7 +975,7 @@ export default function Dashboard() {
                   <thead className="bg-slate-50 text-left text-[10px] uppercase text-slate-500"><tr><th className="px-3 py-2">Véhicule</th><th className="px-3 py-2">Affectation</th><th className="px-3 py-2 text-right">Nb sinistres</th><th className="px-3 py-2">Dernier sinistre</th><th className="px-3 py-2 text-right">Coût cumulé</th></tr></thead>
                   <tbody className="divide-y divide-slate-100">
                     {rows.map(([vid, l]) => { const last = [...l].sort((a, b) => b.date_sinistre.localeCompare(a.date_sinistre))[0]; return (
-                      <tr key={vid} className="hover:bg-slate-50"><td className="px-3 py-2 font-semibold">{vehicleLabel(vid)}</td><td className="px-3 py-2">{deptOf(l[0])}</td><td className="px-3 py-2 text-right font-bold">{l.length}</td><td className="px-3 py-2">{last.type} — {fmtDateFr(last.date_sinistre)}</td><td className="px-3 py-2 text-right">{fmtKPI(coutOf(l))}</td></tr>
+                      <tr key={vid} className="hover:bg-slate-50"><td className="px-3 py-2 font-semibold">{vehicleLabel(vid)}</td><td className="px-3 py-2">{deptOf(l[0])}</td><td className="px-3 py-2 text-right font-bold">{l.length}</td><td className="px-3 py-2">{last.type} — {fmtDateFr(last.date_sinistre)}</td><td className="px-3 py-2 text-right"><Amt n={coutOf(l)} /></td></tr>
                     ); })}
                   </tbody>
                 </table>
@@ -1000,7 +989,7 @@ export default function Dashboard() {
           subtitle = `${all.length} sinistre(s) · ${periode}`;
           body = depts.length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-400">Aucun sinistre.</p> : <>{depts.map(([d, l]) => (
             <div key={d}>
-              <h4 className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-blue-700"><span>{d} — {l.length} sinistre(s)</span><span className="normal-case text-slate-600">{fmtKPI(coutOf(l))}</span></h4>
+              <h4 data-xl-name={d} className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-blue-700"><span>{d} — {l.length} sinistre(s)</span><span className="normal-case text-slate-600">{fmtKPI(coutOf(l))}</span></h4>
               <SinistreTable list={l} vehicleLabel={vehicleLabel} />
             </div>
           ))}</>;
@@ -1033,13 +1022,13 @@ export default function Dashboard() {
             <MiniStats items={[
               { l: 'Dossiers', v: list.length, c: 'bg-slate-50 text-slate-800' },
               { l: 'Véhicules concernés', v: new Set(list.map(i => i.vehicleId)).size, c: 'bg-amber-50 text-amber-700' },
-              { l: 'Coût cumulé', v: fmtKPI(coutOf(list)), c: 'bg-indigo-50 text-indigo-700' },
+              { l: 'Coût cumulé', v: fmtKPI(coutOf(list)), n: coutOf(list), c: 'bg-indigo-50 text-indigo-700' },
               { l: 'Durée moyenne (terminés)', v: durees.length ? `${dureeMoy} j` : '—', c: 'bg-green-50 text-green-700' },
             ]} />
             {byGarage.size > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <div data-xl-list="Par garage" data-xl-cols="Garage|Dossiers|Coût" className="flex flex-wrap gap-2">
                 {Array.from(byGarage.entries()).sort((a, b) => b[1].c - a[1].c).map(([g, x]) => (
-                  <span key={g} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-700"><b>{g}</b> · {x.n} dossier(s) · {fmtKPI(x.c)}</span>
+                  <span key={g} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-700"><b>{g}</b> · {x.n} dossier(s) · <Amt n={x.c} /></span>
                 ))}
               </div>
             )}
@@ -1104,21 +1093,21 @@ export default function Dashboard() {
         };
         return (
           <KpiModal title={`Coût Opérationnel — ${fmtKPI(totalOp)}`} subtitle="Source du montant affiché : cliquez sur une ligne pour ouvrir le menu d'origine" onClose={() => setOpenKpi(null)}>
-            <div className="overflow-hidden rounded-lg border border-slate-200">
-              <button onClick={() => openExpenses()} className="flex w-full items-center justify-between bg-white px-4 py-3 text-left hover:bg-emerald-50">
-                <div><p className="text-sm font-semibold text-slate-800">Dépenses enregistrées ({fe.length})</p><p className="text-xs text-slate-500">Menu Dépenses{filterPeriodFrom || filterPeriodTo ? ` · du ${fmtDateFr(filterPeriodFrom) } au ${fmtDateFr(filterPeriodTo)}` : ' · toutes périodes'}</p></div>
-                <span className="flex items-center gap-2 text-sm font-bold text-slate-800">{fmtKPI(totalExp)} <ExternalLink className="h-4 w-4 text-emerald-600" /></span>
+            <div data-xl-table="Décomposition" data-xl-cols="Source|Détail|Montant" className="overflow-hidden rounded-lg border border-slate-200">
+              <button data-print-keep data-xl-row onClick={() => openExpenses()} className="flex w-full items-center justify-between bg-white px-4 py-3 text-left hover:bg-emerald-50">
+                <div><p data-xl-cell className="text-sm font-semibold text-slate-800">Dépenses enregistrées ({fe.length})</p><p data-xl-cell className="text-xs text-slate-500">Menu Dépenses{filterPeriodFrom || filterPeriodTo ? ` · du ${fmtDateFr(filterPeriodFrom) } au ${fmtDateFr(filterPeriodTo)}` : ' · toutes périodes'}</p></div>
+                <span data-xl-cell data-xl={Math.round(totalExp)} className="flex items-center gap-2 text-sm font-bold text-slate-800">{fmtKPI(totalExp)} <ExternalLink className="h-4 w-4 text-emerald-600" /></span>
               </button>
               {cats.map(([c, v]) => (
-                <button key={c} onClick={() => openExpenses(c)} className="flex w-full items-center justify-between border-t border-slate-100 bg-slate-50/50 py-2 pl-8 pr-4 text-left text-xs hover:bg-emerald-50">
-                  <span className="text-slate-600">{c}</span><span className="flex items-center gap-2 font-medium text-slate-700">{fmtKPI(v)} <ChevronRight className="h-3 w-3" /></span>
+                <button key={c} data-print-keep data-xl-row onClick={() => openExpenses(c)} className="flex w-full items-center justify-between border-t border-slate-100 bg-slate-50/50 py-2 pl-8 pr-4 text-left text-xs hover:bg-emerald-50">
+                  <span data-xl-cell className="text-slate-600">{c}</span><span data-xl-cell className="hidden">Catégorie du menu Dépenses</span><span data-xl-cell data-xl={Math.round(v)} className="flex items-center gap-2 font-medium text-slate-700">{fmtKPI(v)} <ChevronRight className="h-3 w-3" /></span>
                 </button>
               ))}
-              <button onClick={() => navigate('/vehicules')} className="flex w-full items-center justify-between border-t border-slate-200 bg-white px-4 py-3 text-left hover:bg-emerald-50">
-                <div><p className="text-sm font-semibold text-slate-800">Assurances annuelles ({fv.filter(v => v.cout_assurance_annuel > 0).length} véhicule(s))</p><p className="text-xs text-slate-500">Menu Véhicules · case « Coût assurance annuel » de chaque fiche</p></div>
-                <span className="flex items-center gap-2 text-sm font-bold text-slate-800">{fmtKPI(totalIns)} <ExternalLink className="h-4 w-4 text-emerald-600" /></span>
+              <button data-print-keep data-xl-row onClick={() => navigate('/vehicules')} className="flex w-full items-center justify-between border-t border-slate-200 bg-white px-4 py-3 text-left hover:bg-emerald-50">
+                <div><p data-xl-cell className="text-sm font-semibold text-slate-800">Assurances annuelles ({fv.filter(v => v.cout_assurance_annuel > 0).length} véhicule(s))</p><p data-xl-cell className="text-xs text-slate-500">Menu Véhicules · case « Coût assurance annuel » de chaque fiche</p></div>
+                <span data-xl-cell data-xl={Math.round(totalIns)} className="flex items-center gap-2 text-sm font-bold text-slate-800">{fmtKPI(totalIns)} <ExternalLink className="h-4 w-4 text-emerald-600" /></span>
               </button>
-              <div className="flex items-center justify-between border-t-2 border-slate-300 bg-slate-100 px-4 py-3"><span className="text-sm font-bold text-slate-900">Total</span><span className="text-sm font-extrabold text-slate-900">{fmtKPI(totalOp)}</span></div>
+              <div data-xl-row className="flex items-center justify-between border-t-2 border-slate-300 bg-slate-100 px-4 py-3"><span data-xl-cell className="text-sm font-bold text-slate-900">Total</span><span data-xl-cell className="hidden"></span><span data-xl-cell data-xl={Math.round(totalOp)} className="text-sm font-extrabold text-slate-900">{fmtKPI(totalOp)}</span></div>
             </div>
             {filterDept && <p className="text-xs text-amber-700">Filtre département « {filterDept} » actif : le menu Dépenses n'a pas ce filtre, il affichera donc les dépenses de tous les départements.</p>}
           </KpiModal>
