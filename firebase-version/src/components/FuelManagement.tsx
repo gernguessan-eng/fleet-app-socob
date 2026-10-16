@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useVehicles } from '../store/VehicleStore';
 import { usePersistedState } from '../hooks/usePersistedState';
-import { getFuelPrice, fuelPricesFromSettings } from '../utils/fuelPrices';
 import { getCell, parseAmount, readTabularFile } from '../utils/excelIO';
 import type { ExpenseRecord } from '../types';
 import { 
   Fuel, DollarSign, TrendingUp, Download, Printer, PieChart as PieChartIcon, 
-  BarChart as BarChartIcon, CheckCircle2, Calendar, Tag, Layers, Upload,
+  BarChart as BarChartIcon, MapPin, Calendar, Tag, Layers, Upload,
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -22,8 +20,7 @@ function formatFCFA(n: number) {
 }
 
 export default function FuelManagement() {
-  const { vehicles, expenseRecords, appSettings, importExpenseRecords } = useVehicles();
-  const fuelPrices = fuelPricesFromSettings(appSettings);
+  const { vehicles, expenseRecords, importExpenseRecords } = useVehicles();
   const [periodFrom, setPeriodFrom] = usePersistedState('fleetgest_filter_fuel_from', '');
   const [periodTo, setPeriodTo] = usePersistedState('fleetgest_filter_fuel_to', '');
 
@@ -59,28 +56,30 @@ export default function FuelManagement() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Real vs Theoretical
-    // Real = actual fuel cost / (current km - start km) * 100?
-    // Let's simplify: Real Cost per 100km based on recorded fuel expenses vs Theoretical Cost per 100km
-    // Theoretical = (consommation_100km) * prix de référence carburant (Essence 875 / Diesel 700 FCFA/L)
-    const comparisonData = vehicles.map(v => {
-      const actualCost = fuelExpenses
-        .filter(e => e.vehicleId === v.id)
-        .reduce((sum, e) => sum + e.montant, 0);
-      
-      const theoreticalCostPer100 = (v.consommation_100km || 0) * getFuelPrice(v.energie, fuelPrices);
-      
-      // Approximate distance driven if we have history... but we don't track start km.
-      // Let's just compare the monthly average real vs theoretical if we can.
-      // Or just show total fuel spent vs what would be expected for his total km.
-      const expectedTotalCost = (v.kilometrage / 100) * theoreticalCostPer100;
-
-      return {
-        name: v.numero_immatriculation,
-        Reel: actualCost,
-        Theorique: Math.round(expectedTotalCost)
-      };
-    }).filter(d => d.Reel > 0);
+    // ── Répartition des consommations / zone de travail ──
+    // La zone d'une dépense est celle du véhicule auquel elle est affectée (case « Zone de travail » de sa fiche).
+    // Les zones qui ont des véhicules affectés mais aucune dépense carburant sur la période restent affichées (0 FCFA).
+    const zoneOf = (v?: (typeof vehicles)[number]) => (v ? (v.zone_travail?.trim() || 'Non renseigné') : 'Véhicule inconnu');
+    const zoneMap = new Map<string, { value: number; count: number; actifs: Set<string>; affectes: number }>();
+    const zoneEntry = (z: string) => {
+      let e = zoneMap.get(z);
+      if (!e) { e = { value: 0, count: 0, actifs: new Set(), affectes: 0 }; zoneMap.set(z, e); }
+      return e;
+    };
+    vehicles.forEach(v => { zoneEntry(zoneOf(v)).affectes += 1; });
+    fuelExpenses.forEach(e => {
+      const entry = zoneEntry(zoneOf(vehicleById.get(e.vehicleId)));
+      entry.value += e.montant;
+      entry.count += 1;
+      entry.actifs.add(e.vehicleId);
+    });
+    const zoneData = Array.from(zoneMap.entries())
+      .map(([name, x]) => ({
+        name, value: x.value, count: x.count,
+        affectes: x.affectes, actifs: x.actifs.size,
+        moyenne: x.actifs.size > 0 ? Math.round(x.value / x.actifs.size) : 0,
+      }))
+      .sort((p, q) => q.value - p.value || p.name.localeCompare(q.name, 'fr'));
 
     // ── Évolution mensuelle des dépenses carburant ──
     const monthlyMap = new Map<string, number>();
@@ -145,10 +144,10 @@ export default function FuelManagement() {
 
     return { 
       total, count, avg, 
-      paymentData, vehicleData, comparisonData,
+      paymentData, vehicleData, zoneData,
       monthlyData, brandData, typeData
     };
-  }, [fuelExpenses, vehicles, fuelPrices]);
+  }, [fuelExpenses, vehicles]);
 
   const [importMessage, setImportMessage] = useState('');
   const [importPreview, setImportPreview] = useState<ExpenseRecord[]>([]);
@@ -337,28 +336,40 @@ export default function FuelManagement() {
           </div>
         </div>
 
-        {/* Real vs Theoretical */}
+        {/* Répartition des consommations / zone de travail */}
         <div className="col-span-1 lg:col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800">
-            <CheckCircle2 className="h-5 w-5 text-blue-500" />
-            Consommation Cumulée : Réel vs Théorique (basé sur Km total)
+          <h3 className="mb-1 flex items-center gap-2 text-lg font-semibold text-slate-800">
+            <MapPin className="h-5 w-5 text-emerald-500" />
+            Répartition des conso / zone de travail
           </h3>
-          <div className="h-96 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.comparisonData} margin={{ top: 20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" />
-                <YAxis tickFormatter={(v) => `${v/1000}k`} />
-                <Tooltip formatter={(v: any) => formatFCFA(v)} />
-                <Legend />
-                <Bar dataKey="Reel" fill="#10b981" name="Coût Réel (Saisi)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Theorique" fill="#94a3b8" name="Coût Théorique (Km x L/100)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="mt-4 text-xs text-slate-500 italic text-center">
-            Note: Le coût théorique est calculé à partir du kilométrage total du véhicule et de sa consommation constructeur, avec les prix de référence carburant : Essence {fuelPrices.Essence.toLocaleString('fr-FR')} FCFA/L, Diesel {fuelPrices.Diesel.toLocaleString('fr-FR')} FCFA/L. <Link to="/parametres" className="font-medium text-emerald-600 hover:underline print:hidden">Modifier ces prix</Link>
+          <p className="mb-4 text-[11px] text-slate-400">
+            Dépenses carburant{(periodFrom || periodTo) ? ' de la période' : ''}, regroupées selon la case « Zone de travail » de chaque véhicule affecté
           </p>
+          {stats.zoneData.length > 0 && stats.total > 0 ? (
+            <div className="space-y-2" data-testid="fuel-by-zone">
+              {(() => {
+                const maxV = Math.max(...stats.zoneData.map(z => z.value), 1);
+                return stats.zoneData.map(z => (
+                  <div key={z.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded px-1 py-1 hover:bg-emerald-50 sm:flex-nowrap" title={`${z.name} : ${formatFCFA(z.value)} — ${z.count} plein(s)/dépense(s), ${z.actifs} véhicule(s) sur ${z.affectes} affecté(s)`}>
+                    <span className="w-full flex-shrink-0 truncate text-xs font-medium text-slate-700 sm:w-[150px]">{z.name}</span>
+                    <div className="h-[20px] min-w-[80px] flex-1 rounded bg-slate-100">
+                      <div className="h-full rounded bg-emerald-500" style={{ width: `${z.value > 0 ? Math.max(3, (z.value / maxV) * 100) : 0}%` }} />
+                    </div>
+                    <span className="w-[110px] flex-shrink-0 text-right text-xs font-bold text-slate-800">{formatFCFA(z.value)}</span>
+                    <span className="w-10 flex-shrink-0 text-right text-[11px] text-slate-500">{Math.round((z.value / stats.total) * 100)}%</span>
+                    <span className="w-full flex-shrink-0 text-right text-[11px] text-slate-400 sm:w-[210px]">
+                      {z.name === 'Véhicule inconnu' ? `${z.count} dépense(s) sans véhicule retrouvé` : `${z.affectes} véhicule(s) affecté(s)${z.actifs > 0 ? ` · ${formatFCFA(z.moyenne)} / véhicule` : ''}`}
+                    </span>
+                  </div>
+                ));
+              })()}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Aucune dépense carburant enregistrée{(periodFrom || periodTo) ? ' sur cette période' : ''} pour répartir par zone de travail.</p>
+          )}
+          {stats.zoneData.some(z => z.name === 'Non renseigné' && z.value > 0) && (
+            <p className="mt-3 text-[11px] italic text-slate-500">« Non renseigné » : véhicules dont la fiche n'indique pas de zone de travail — à compléter dans le menu Véhicules.</p>
+          )}
         </div>
       </div>
 
