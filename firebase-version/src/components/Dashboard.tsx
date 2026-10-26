@@ -10,6 +10,7 @@ import {
   DollarSign, Printer, Shield, Filter, ParkingCircle, Activity, Clock, Settings2, ExternalLink, ChevronRight,
 } from 'lucide-react';
 import KpiModal from './KpiModal';
+import CardActions from './CardActions';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList,
 } from 'recharts';
@@ -770,17 +771,20 @@ export default function Dashboard() {
       </div>
 
       {/* Alertes */}
-      <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Alertes entretiens') ? 'print:hidden' : ''}`}>
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-800"><Wrench className="h-5 w-5 text-amber-500" />Alertes entretiens</h3>
+      <div data-print-card className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Alertes entretiens') ? 'print:hidden' : ''}`}>
+        <h3 data-xl-name="Alertes entretiens" className="mb-4 flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-800"><Wrench className="h-5 w-5 text-amber-500" />Alertes entretiens
+          {maintenanceAlerts.length > 0 && <CardActions className="ml-auto" title="Alertes entretiens" subtitle={`${maintenanceAlerts.length} véhicule(s) concerné(s) · ${maintenanceAlerts.filter(a => a.forecast.alertLevel === 'critical').length} urgent(s)`} />}
+        </h3>
         {maintenanceAlerts.length > 0 ? <div className="max-h-[560px] overflow-auto print:max-h-none print:overflow-visible"><table className="min-w-full divide-y divide-slate-200"><thead className="sticky top-0 z-10 bg-slate-50"><tr>{['Véhicule', 'Dernier', 'Prochain', 'Échéance', 'Statut'].map(h => <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{maintenanceAlerts.map(({ vehicle, forecast }) => <tr key={vehicle.id} className="hover:bg-slate-50"><td className="px-4 py-2"><Link to="/vehicules" className="text-sm font-semibold text-emerald-600">{vehicle.numero_immatriculation}</Link><p className="text-xs text-slate-500">{vehicle.marque}</p></td><td className="px-4 py-2 text-sm text-slate-600">{forecast.hasHistory ? `${forecast.lastMaintenanceKm.toLocaleString('fr-FR')} km` : '—'}</td><td className="px-4 py-2 text-sm text-slate-600">{forecast.hasHistory ? `${forecast.nextMaintenanceKm.toLocaleString('fr-FR')} km` : '—'}</td><td className="px-4 py-2 text-sm text-slate-600">{forecast.estimatedNextDate ? new Date(forecast.estimatedNextDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td><td className="px-4 py-2 text-center"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${forecast.alertLevel === 'critical' ? 'bg-red-100 text-red-700' : forecast.alertLevel === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{forecast.alertLevel === 'critical' ? 'Urgent' : forecast.alertLevel === 'warning' ? `${forecast.remainingKm.toLocaleString('fr-FR')} km` : '—'}</span></td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-400">Aucune alerte</p>}
       </div>
 
-      <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Alertes échéances') ? 'print:hidden' : ''}`}>
-        <h3 className="mb-4 flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-800"><Calendar className="h-5 w-5 text-amber-500" />Alertes échéances
+      <div data-print-card className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${hiddenKpis.has('Alertes échéances') ? 'print:hidden' : ''}`}>
+        <h3 data-xl-name="Alertes échéances" className="mb-4 flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-800"><Calendar className="h-5 w-5 text-amber-500" />Alertes échéances
           {echeanceRows.length > 0 && (
-            <span className="ml-auto flex gap-2 text-xs font-medium">
+            <span className="ml-auto flex flex-wrap items-center gap-2 text-xs font-medium">
               <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-red-700">{echeanceRows.filter(r => r.days < 0).length} échue(s)</span>
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-700">{echeanceRows.filter(r => r.days >= 0).length} à venir (30 j)</span>
+              <CardActions title="Alertes échéances" subtitle={`${echeanceRows.filter(r => r.days < 0).length} échue(s) · ${echeanceRows.filter(r => r.days >= 0).length} à venir (30 j)`} />
             </span>
           )}
         </h3>
