@@ -431,6 +431,26 @@ export default function DriverManagement() {
   const driverById = useMemo(() => new Map(drivers.map(d => [d.id, d])), [drivers]);
   const vehicleById = useMemo(() => new Map(vehicles.map(v => [v.id, v])), [vehicles]);
 
+  // Recherche : porte sur toutes les rubriques de la fiche (identité, fonction, contacts, permis,
+  // dates, véhicule affecté, statut, notes). Insensible aux accents et à la casse ; plusieurs mots =
+  // tous doivent être trouvés (dans n'importe quelle rubrique). Dates cherchables en 25/03/2027 ou 2027-03-25.
+  const driversFiltered = useMemo(() => {
+    const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const words = fold(search).split(/\s+/).filter(Boolean);
+    if (words.length === 0) return drivers;
+    const frDate = (iso?: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+    return drivers.filter(d => {
+      const v = vehicleById.get(d.vehicule_affecte_id);
+      const hay = fold([
+        d.nom, d.prenom, d.prenom + ' ' + d.nom, d.fonction, d.telephone, (d.telephone || '').replace(/[\s.\-()]/g, ''), d.email,
+        d.numero_permis, d.categorie_permis, d.date_expiration_permis, frDate(d.date_expiration_permis), d.date_embauche, frDate(d.date_embauche),
+        d.statut, d.notes,
+        v ? `${v.numero_immatriculation} ${v.marque} ${v.type_commercial}` : 'aucun vehicule',
+      ].filter(Boolean).join(' | '));
+      return words.every(w => hay.includes(w));
+    });
+  }, [drivers, search, vehicleById]);
+
   const tabs = [
     { id: 'chauffeurs' as const, label: 'Chauffeurs', icon: Users, count: drivers.length },
     { id: 'missions' as const, label: 'Missions', icon: ClipboardList, count: missions.length },
@@ -532,13 +552,18 @@ export default function DriverManagement() {
           <div className="flex flex-col gap-3 sm:flex-row print:hidden">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un chauffeur…" className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher : nom, fonction, téléphone, e-mail, n° permis, véhicule, statut, notes…" className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
             </div>
             <button onClick={() => { setEditDriverId(null); setShowDriverForm(true); }} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"><Plus className="h-4 w-4" /> Ajouter</button>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {drivers.filter(d => { const q = search.toLowerCase(); return !q || `${d.nom} ${d.prenom} ${d.telephone} ${d.email}`.toLowerCase().includes(q); }).map(d => {
+            {search.trim() && (
+              <p className="col-span-full text-xs text-slate-500 print:hidden">
+                {driversFiltered.length === 0 ? 'Aucun chauffeur ne correspond à cette recherche.' : `${driversFiltered.length} chauffeur(s) trouvé(s) sur ${drivers.length}`}
+              </p>
+            )}
+            {driversFiltered.map(d => {
               const v = vehicleById.get(d.vehicule_affecte_id);
               const permisExpire = d.date_expiration_permis && new Date(d.date_expiration_permis) < new Date();
               return (
