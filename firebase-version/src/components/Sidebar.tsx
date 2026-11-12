@@ -1,9 +1,9 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LayoutDashboard, Car, BarChart3, Receipt,
   GripVertical, MapPin, Fuel, Users, Eye, EyeOff, PackageX,
-  AlertTriangle, Wrench, ParkingCircle, BookUser, Package, ShieldCheck, Settings,
+  AlertTriangle, Wrench, ParkingCircle, BookUser, Package, ShieldCheck, Settings, X,
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
 import { useDeletionRequests } from '../store/DeletionRequestsStore';
@@ -31,6 +31,13 @@ const defaultNavItems: NavItemDef[] = [
   { path: '/graphiques',     label: 'Graphiques et analyses',    icon: BarChart3 },
   { path: '/reforme',        label: 'Plan de réforme',           icon: PackageX },
 ];
+
+/** Titre de la page affichée dans la barre du haut (téléphone) */
+export function pageTitleFor(pathname: string): string {
+  if (pathname.startsWith('/vehicule/')) return 'Fiche véhicule';
+  if (pathname === '/demandes-suppression') return 'Demandes de suppression';
+  return defaultNavItems.find((i) => i.path === pathname)?.label ?? 'SOCOB FleetGest';
+}
 
 const STORAGE_ORDER_KEY = 'parc_auto_nav_order';
 const STORAGE_HIDDEN_KEY = 'parc_auto_nav_hidden';
@@ -74,8 +81,15 @@ function saveHidden(hidden: Set<string>) {
   localStorage.setItem(STORAGE_HIDDEN_KEY, JSON.stringify(Array.from(hidden)));
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  /** Téléphone/tablette : le menu est un tiroir qui glisse depuis la gauche */
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const location = useLocation();
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const { isSuperAdmin } = useAuth();
   const { deletionRequests } = useDeletionRequests();
   const pendingCount = deletionRequests.filter(r => r.status === 'pending').length;
@@ -87,6 +101,23 @@ export default function Sidebar() {
 
   useEffect(() => { saveOrder(items); }, [items]);
   useEffect(() => { saveHidden(hiddenItems); }, [hiddenItems]);
+
+  // Le tiroir se referme dès qu'on change de page, avec la touche Échap, ou si l'écran devient large
+  useEffect(() => { onClose(); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onResize = () => { if (window.innerWidth >= 1024) onClose(); };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden'; // le contenu derrière ne défile plus
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
 
   const handleDragStart = useCallback((index: number) => setDragIndex(index), []);
   const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
@@ -119,14 +150,32 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-emerald-950 text-white shadow-xl">
+    <>
+    {/* Voile sombre derrière le tiroir (téléphone) : toucher pour fermer */}
+    <div
+      aria-hidden="true"
+      onClick={onClose}
+      className={`fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-[2px] transition-opacity duration-300 lg:hidden print:hidden ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+    />
+    <aside
+      id="main-nav"
+      aria-label="Menu principal"
+      onTouchStart={(e) => { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchEnd={(e) => {
+        const s0 = touchStart.current; touchStart.current = null;
+        if (!s0 || !open) return;
+        const dx = e.changedTouches[0].clientX - s0.x; const dy = e.changedTouches[0].clientY - s0.y;
+        if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) onClose(); // glisser vers la gauche = refermer
+      }}
+      className={`${open ? 'nav-open translate-x-0 shadow-2xl' : 'max-lg:invisible -translate-x-full'} fixed left-0 top-0 z-40 flex h-dvh w-[min(86vw,19rem)] flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-emerald-950 text-white shadow-xl transition-[transform,visibility] duration-300 ease-out lg:z-30 lg:h-full lg:w-64 lg:translate-x-0`}
+    >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-0 bg-center bg-no-repeat opacity-[0.06]"
         style={{ backgroundImage: "url('/socob-logo.png')", backgroundSize: '340px' }}
       />
       <div className="relative z-10 flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b-2 border-[#E8B923]/50 px-6 py-5">
+      <div className="flex items-center gap-3 border-b-2 border-[#E8B923]/50 px-5 py-4 lg:px-6 lg:py-5">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white p-0.5 shadow-md">
           <img
             src="/socob-logo.png"
@@ -134,10 +183,18 @@ export default function Sidebar() {
             className="h-full w-full rounded-full object-contain"
           />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-sm font-bold leading-tight">{displayAppName()}</h1>
           <p className="text-[10px] text-slate-400">Gestion de flotte</p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Fermer le menu"
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-slate-200 ring-1 ring-white/10 transition active:scale-95 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="px-3 pt-3">
@@ -157,7 +214,7 @@ export default function Sidebar() {
         {editMode && <p className="mt-2 px-1 text-[10px] leading-relaxed text-slate-500">Glissez pour déplacer. Cliquez sur l'œil pour masquer ou afficher un onglet.</p>}
       </div>
 
-      <nav className={`flex-1 space-y-1 overflow-y-auto px-3 ${editMode ? 'py-2' : 'py-4'}`}>
+      <nav className={`flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-[max(1rem,env(safe-area-inset-bottom))] ${editMode ? 'pt-2' : 'pt-4'}`}>
         {items.map((item, index) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -172,13 +229,14 @@ export default function Sidebar() {
               onDragOver={(e) => handleDragOver(e, index)}
               onDrop={(e) => handleDrop(e, index)}
               onDragEnd={handleDragEnd}
-              className={`flex items-center gap-2 rounded-lg transition-all ${isDragOver ? 'border-2 border-dashed border-emerald-400 bg-emerald-500/10' : ''} ${editMode ? 'cursor-move' : ''} ${isHidden ? 'opacity-45' : ''}`}
+              style={{ '--i': index } as React.CSSProperties}
+              className={`nav-item flex items-center gap-2 rounded-lg transition-all ${isDragOver ? 'border-2 border-dashed border-emerald-400 bg-emerald-500/10' : ''} ${editMode ? 'cursor-move' : ''} ${isHidden ? 'opacity-45' : ''}`}
             >
               {editMode && <div className="flex-shrink-0 pl-1 text-slate-500"><GripVertical className="h-4 w-4" /></div>}
               <NavLink
                 to={item.path}
                 className={`flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${isActive ? 'border-l-4 border-[#E8B923] bg-emerald-600 text-white shadow-lg shadow-emerald-900/30' : 'border-l-4 border-transparent text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}
-                onClick={(e) => { if (editMode) e.preventDefault(); }}
+                onClick={(e) => { if (editMode) e.preventDefault(); else onClose(); }}
               >
                 <Icon className="h-5 w-5 flex-shrink-0" />
                 <span className="flex-1 leading-tight">{item.label}</span>
@@ -221,5 +279,6 @@ export default function Sidebar() {
       )}
       </div>
     </aside>
+    </>
   );
 }
