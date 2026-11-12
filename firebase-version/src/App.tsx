@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
+import MobileTopBar from './components/MobileTopBar';
 import Dashboard from './components/Dashboard';
 import VehicleList from './components/VehicleList';
 import VehicleDetail from './components/VehicleDetail';
@@ -26,6 +27,27 @@ import { AuthProvider } from './store/AuthContext';
 import { DeletionRequestsProvider } from './store/DeletionRequestsStore';
 
 function AppContent({ profile, onLogout }: { profile: UserProfile; onLogout: () => void }) {
+  const [navOpen, setNavOpen] = useState(false);
+  const closeNav = useCallback(() => setNavOpen(false), []);
+
+  // Téléphone : un glissement du doigt depuis le bord gauche de l'écran ouvre le menu
+  useEffect(() => {
+    let start: { x: number; y: number } | null = null;
+    const down = (e: TouchEvent) => {
+      const t = e.touches[0];
+      start = window.innerWidth < 1024 && t.clientX <= 22 ? { x: t.clientX, y: t.clientY } : null;
+    };
+    const up = (e: TouchEvent) => {
+      if (!start) return;
+      const t = e.changedTouches[0];
+      if (t.clientX - start.x > 70 && Math.abs(t.clientX - start.x) > Math.abs(t.clientY - start.y) * 1.5) setNavOpen(true);
+      start = null;
+    };
+    window.addEventListener('touchstart', down, { passive: true });
+    window.addEventListener('touchend', up, { passive: true });
+    return () => { window.removeEventListener('touchstart', down); window.removeEventListener('touchend', up); };
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
       <div className="flex items-center justify-end gap-3 bg-slate-900 px-4 py-1.5 text-xs text-slate-300 print:hidden">
@@ -35,11 +57,13 @@ function AppContent({ profile, onLogout }: { profile: UserProfile; onLogout: () 
         </button>
       </div>
       <div className="flex flex-1">
-        <Sidebar />
-        <main className="relative ml-64 flex-1 p-6 print:ml-0 print:p-0">
+        <Sidebar open={navOpen} onClose={closeNav} />
+        <div className="flex min-w-0 flex-1 flex-col lg:ml-64 print:ml-0">
+        <MobileTopBar open={navOpen} onMenu={() => setNavOpen(true)} />
+        <main className="relative flex-1 p-3 sm:p-4 lg:p-6 print:p-0">
           <div
             aria-hidden="true"
-            className="pointer-events-none fixed inset-y-0 left-64 right-0 z-0 bg-center bg-no-repeat opacity-[0.05] print:hidden"
+            className="pointer-events-none fixed inset-y-0 left-0 right-0 lg:left-64 z-0 bg-center bg-no-repeat opacity-[0.05] print:hidden"
             style={{
               backgroundImage: "url('/socob-logo.png')",
               backgroundSize: 'min(55vw, 620px)',
@@ -69,6 +93,7 @@ function AppContent({ profile, onLogout }: { profile: UserProfile; onLogout: () 
           </Routes>
           </div>
         </main>
+        </div>
       </div>
     </div>
   );
