@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 import SearchableSelect from './SearchableSelect';
+import ResetFiltersButton from './ResetFiltersButton';
 
 const STATUT_COLORS: Record<string, string> = {
   Déclaré: 'bg-blue-100 text-blue-700',
@@ -288,6 +289,9 @@ export default function Sinistres() {
         </div>
         <label className="block text-xs font-medium text-slate-600">Du<input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
         <label className="block text-xs font-medium text-slate-600">Au<input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
+        {(search || periodFrom || periodTo) && (
+          <ResetFiltersButton onClick={() => { setSearch(''); setPeriodFrom(''); setPeriodTo(''); }} />
+        )}
       </div>
 
       {/* Tableau */}

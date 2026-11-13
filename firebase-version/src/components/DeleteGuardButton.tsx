@@ -17,15 +17,17 @@ interface Props {
   size?: 'sm' | 'md';
   /** Contenu personnalisé du bouton déclencheur (ex: "Supprimer" en toutes lettres). Par défaut : icône poubelle seule. */
   children?: ReactNode;
+  /** Suppression directe (après confirmation) sans passer par une demande de validation */
+  forceDirect?: boolean;
 }
 
-export default function DeleteGuardButton({ module, recordId, label, onDelete, className, title, size = 'sm', children }: Props) {
+export default function DeleteGuardButton({ module, recordId, label, onDelete, className, title, size = 'sm', children, forceDirect = false }: Props) {
   const { profile, isSuperAdmin } = useAuth();
   const { deletionRequests, requestDeletion } = useDeletionRequests();
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const isAdmin = isSuperAdmin;
+  const isAdmin = isSuperAdmin || forceDirect;
   const alreadyRequested = deletionRequests.some(r => r.module === module && r.recordId === recordId && r.status === 'pending');
   const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4';
 

@@ -6,6 +6,7 @@ import DeleteGuardButton from './DeleteGuardButton';
 import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { ImmobilisationRecord } from '../types/immobilisations';
 import SearchableSelect from './SearchableSelect';
+import ResetFiltersButton from './ResetFiltersButton';
 
 export type { ImmobilisationRecord };
 
@@ -106,6 +107,9 @@ export default function Immobilisations() {
         </div>
         <label className="block text-xs font-medium text-slate-600">Du<input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
         <label className="block text-xs font-medium text-slate-600">Au<input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
+        {(search || periodFrom || periodTo) && (
+          <ResetFiltersButton onClick={() => { setSearch(''); setPeriodFrom(''); setPeriodTo(''); }} />
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

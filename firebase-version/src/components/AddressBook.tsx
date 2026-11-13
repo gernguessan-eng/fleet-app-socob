@@ -9,6 +9,7 @@ import {
 import DeleteGuardButton from './DeleteGuardButton';
 import SuggestInput from './SuggestInput';
 import { uniqueValues } from '../utils/suggestions';
+import ResetFiltersButton from './ResetFiltersButton';
 
 const TYPE_OPTIONS: Contact['type_contact'][] = [
   'Fournisseur', 'Garage', 'Assureur', 'Client', 'Partenaire', 'Administration', 'Chauffeur', 'Autre',
@@ -133,6 +134,9 @@ export default function AddressBook() {
               {t} ({counts.get(t) || 0})
             </button>
           ))}
+          {(search || typeFilter !== 'Tous') && (
+            <ResetFiltersButton className="!px-3 !py-1.5 !text-xs" onClick={() => { setSearch(''); setTypeFilter('Tous'); }} />
+          )}
         </div>
       </div>
 

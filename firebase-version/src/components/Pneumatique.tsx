@@ -13,6 +13,7 @@ import SelectWithOther from './SelectWithOther';
 import { exportRowsToExcel } from '../utils/excelIO';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 import SearchableSelect from './SearchableSelect';
+import ResetFiltersButton from './ResetFiltersButton';
 
 const SEUIL_DEFAUT: SeuilAlertePneu = { usureMinimale_mm: 1.6, kmMaxParJeu: 60000, coutBudgetMensuel: 2000000 };
 
@@ -365,6 +366,9 @@ export default function Pneumatique() {
         </div>
         <label className="block text-xs font-medium text-slate-600">Du<input type="date" value={periodFrom} onChange={e => setPeriodFrom(e.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
         <label className="block text-xs font-medium text-slate-600">Au<input type="date" value={periodTo} onChange={e => setPeriodTo(e.target.value)} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label>
+        {(search || periodFrom || periodTo || positionFilter || etatFilter) && (
+          <ResetFiltersButton onClick={() => { setSearch(''); setPeriodFrom(''); setPeriodTo(''); setPositionFilter(''); setEtatFilter(''); }} />
+        )}
       </div>
 
       {/* Tableau — cliquer sur une ligne ouvre la fiche modifiable du pneu */}

@@ -7,16 +7,21 @@ import type { UserProfile } from '../authService';
 // distincte du système de rôles Administrateur/Agent/Client utilisé pour le reste de l'app.
 const SUPER_ADMIN_EMAILS = ['gernguessan@outlook.com', 'sthcarry@yahoo.fr'];
 
+// Seuls ces comptes voient la poubelle du menu « Dépenses » et suppriment les lignes directement.
+const EXPENSE_DELETE_EMAILS = ['gernguessan@outlook.com', 'sthcarry@yahoo.fr', 'sthcarry@gmail.com'];
+
 interface AuthContextType {
   profile: UserProfile | null;
   isSuperAdmin: boolean;
+  canDeleteExpenses: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({ profile: null, isSuperAdmin: false });
+const AuthContext = createContext<AuthContextType>({ profile: null, isSuperAdmin: false, canDeleteExpenses: false });
 
 export function AuthProvider({ profile, children }: { profile: UserProfile | null; children: React.ReactNode }) {
   const isSuperAdmin = !!profile?.email && SUPER_ADMIN_EMAILS.includes(profile.email.trim().toLowerCase());
-  return <AuthContext.Provider value={{ profile, isSuperAdmin }}>{children}</AuthContext.Provider>;
+  const canDeleteExpenses = !!profile?.email && EXPENSE_DELETE_EMAILS.includes(profile.email.trim().toLowerCase());
+  return <AuthContext.Provider value={{ profile, isSuperAdmin, canDeleteExpenses }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

@@ -6,12 +6,15 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 import { useVehicles } from '../store/VehicleStore';
+import { useAuth } from '../store/AuthContext';
+import DeleteGuardButton from './DeleteGuardButton';
 import { usePersistedState } from '../hooks/usePersistedState';
 import SortDateButton, { type SortOrder } from './SortDateButton';
 import type { ExpenseCategory, ExpenseRecord } from '../types';
 import SuggestInput from './SuggestInput';
 import { uniqueValues } from '../utils/suggestions';
 import SearchableSelect from './SearchableSelect';
+import ResetFiltersButton from './ResetFiltersButton';
 
 const categoryOptions: ExpenseCategory[] = [
   'Carburant', 'Entretien', 'Réparation', 'Assurance', 'Vignette',
@@ -30,7 +33,8 @@ function getCell(row: Record<string, unknown>, keys: string[]) {
 function parseAmount(value: string) { const c = value.replace(/\s/g, '').replace(',', '.').replace(/[A-Za-z]/g, ''); return Number(c) || 0; }
 
 export default function Expenses() {
-  const { vehicles, expenseRecords, addExpenseRecord, updateExpenseRecord, importExpenseRecords, getDashboardStats } = useVehicles();
+  const { vehicles, expenseRecords, addExpenseRecord, updateExpenseRecord, importExpenseRecords, deleteExpenseRecord, getDashboardStats } = useVehicles();
+  const { canDeleteExpenses } = useAuth();
   const stats = getDashboardStats();
   const [showForm, setShowForm] = usePersistedState('fleetgest_draft_expense_form_open', false);
   const [editingExpenseId, setEditingExpenseId] = usePersistedState<string | null>('fleetgest_draft_expense_edit_id', null);
@@ -162,6 +166,9 @@ export default function Expenses() {
               </select>
               <input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} title="Période du" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none" />
               <input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} title="Période au" className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none" />
+              {(search || filterVehicle || filterCategory || periodFrom || periodTo) && (
+                <ResetFiltersButton onClick={() => { setSearch(''); setFilterVehicle(''); setFilterCategory(''); setPeriodFrom(''); setPeriodTo(''); }} />
+              )}
             </div>
           </div>
         </div>
@@ -195,6 +202,17 @@ export default function Expenses() {
                           ) : null
                         ) : (
                           <button onClick={() => handleEdit(expense)} className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600" title="Modifier"><Pencil className="h-4 w-4" /></button>
+                        )}
+                        {canDeleteExpenses && !fromMaintenance && (
+                          <DeleteGuardButton
+                            module="depenses"
+                            recordId={expense.id}
+                            forceDirect
+                            label={`la dépense « ${expense.libelle} » (${formatMoney(expense.montant)})`}
+                            onDelete={() => deleteExpenseRecord(expense.id)}
+                            size="md"
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          />
                         )}
                       </div></td>
                     </tr>
