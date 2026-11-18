@@ -89,6 +89,8 @@ export type ExpenseCategory =
 export interface ExpenseRecord {
   id: string;
   vehicleId: string;
+  /** Saisie libre (plaque, engin…) quand la dépense n'est liée à aucun véhicule du parc. */
+  vehicule_libre?: string;
   date: string;
   categorie: ExpenseCategory;
   libelle: string;

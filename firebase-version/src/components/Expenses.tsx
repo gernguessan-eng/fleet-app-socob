@@ -51,7 +51,7 @@ export default function Expenses() {
 
   const filteredExpenses = useMemo(() => expenseRecords.filter((expense) => {
     const vehicle = vehicleById.get(expense.vehicleId);
-    const text = `${expense.libelle} ${expense.categorie} ${expense.fournisseur} ${expense.numero_piece} ${vehicle?.numero_immatriculation ?? ''}`.toLowerCase();
+    const text = `${expense.libelle} ${expense.categorie} ${expense.fournisseur} ${expense.numero_piece} ${vehicle?.numero_immatriculation ?? ''} ${expense.vehicule_libre ?? ''}`.toLowerCase();
     const matchSearch = !search || text.includes(search.toLowerCase());
     const matchCat = !filterCategory || expense.categorie === filterCategory;
     const matchVeh = !filterVehicle || (filterVehicle === '__sans_vehicule__' ? !expense.vehicleId : expense.vehicleId === filterVehicle);
@@ -64,6 +64,7 @@ export default function Expenses() {
   const knownSuppliers = useMemo(() => uniqueValues(expenseRecords.map(e => e.fournisseur)), [expenseRecords]);
   const knownLibelles = useMemo(() => uniqueValues(expenseRecords.map(e => e.libelle)), [expenseRecords]);
   // Modes de paiement « Autre (préciser) » déjà saisis : reproposés
+  const knownFreeVehicles = useMemo(() => uniqueValues(expenseRecords.map(e => e.vehicule_libre ?? '')), [expenseRecords]);
   const knownPaiements = useMemo(() => uniqueValues(expenseRecords.map(e => e.mode_paiement), { exclude: [...PAYMENT_OPTIONS, 'Autre'] }), [expenseRecords]);
 
   const totalFiltered = filteredExpenses.reduce((sum, e) => sum + e.montant, 0);
@@ -87,7 +88,7 @@ export default function Expenses() {
 
   const handlePrint = () => window.print();
   const exportExcel = () => {
-    const rows = filteredExpenses.map(e => { const v = vehicleById.get(e.vehicleId); return { 'Date': e.date, 'Véhicule': v?.numero_immatriculation || '', 'Catégorie': e.categorie, 'Libellé': e.libelle, 'Montant (FCFA)': e.montant, 'Fournisseur': e.fournisseur, 'Paiement': e.mode_paiement, 'N° pièce': e.numero_piece, 'Notes': e.notes }; });
+    const rows = filteredExpenses.map(e => { const v = vehicleById.get(e.vehicleId); return { 'Date': e.date, 'Véhicule': v?.numero_immatriculation || e.vehicule_libre || '', 'Catégorie': e.categorie, 'Libellé': e.libelle, 'Montant (FCFA)': e.montant, 'Fournisseur': e.fournisseur, 'Paiement': e.mode_paiement, 'N° pièce': e.numero_piece, 'Notes': e.notes }; });
     const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Dépenses'); XLSX.writeFile(wb, 'depenses_vehicules.xlsx');
   };
   const importPreview = () => { importExpenseRecords(preview); setImportMessage(`${preview.length} dépense(s) importée(s) avec succès.`); setPreview([]); };
@@ -104,8 +105,8 @@ export default function Expenses() {
     // Le véhicule n'est plus obligatoire : une dépense sans véhicule reconnu est importée quand
     // même (vehicleId vide), et si un nom de véhicule était mentionné sans être reconnu, on le
     // garde dans les notes pour ne pas perdre l'information.
-    const notes = (!vehicle && plate) ? `[Véhicule mentionné non reconnu : ${plate}]${rawNotes ? ' ' + rawNotes : ''}` : rawNotes;
-    return { id: 'e-import-' + Date.now() + '-' + index, vehicleId: vehicle?.id || '', date: dateExpense, categorie, libelle: getCell(row, ['libelle', 'libellé', 'description', 'objet']) || categorie, montant, fournisseur: getCell(row, ['fournisseur', 'garage', 'station', 'prestataire']), mode_paiement: getCell(row, ['mode_paiement', 'paiement', 'mode']) || 'Non précisé', numero_piece: getCell(row, ['numero_piece', 'n_piece', 'facture', 'recu', 'reçu']), justificatif_nom: getCell(row, ['justificatif', 'piece_jointe', 'pièce_jointe']), notes, date_entretien: categorie === 'Entretien' ? (getCell(row, ['date_entretien', 'date entretien']) || dateExpense) : '', kilometrage_entretien: categorie === 'Entretien' ? parseAmount(getCell(row, ['kilometrage_entretien', 'kilometrage', 'kilométrage', 'km_entretien', 'km'])) : 0 };
+    const notes = rawNotes;
+    return { id: 'e-import-' + Date.now() + '-' + index, vehicleId: vehicle?.id || '', vehicule_libre: vehicle ? '' : plate, date: dateExpense, categorie, libelle: getCell(row, ['libelle', 'libellé', 'description', 'objet']) || categorie, montant, fournisseur: getCell(row, ['fournisseur', 'garage', 'station', 'prestataire']), mode_paiement: getCell(row, ['mode_paiement', 'paiement', 'mode']) || 'Non précisé', numero_piece: getCell(row, ['numero_piece', 'n_piece', 'facture', 'recu', 'reçu']), justificatif_nom: getCell(row, ['justificatif', 'piece_jointe', 'pièce_jointe']), notes, date_entretien: categorie === 'Entretien' ? (getCell(row, ['date_entretien', 'date entretien']) || dateExpense) : '', kilometrage_entretien: categorie === 'Entretien' ? parseAmount(getCell(row, ['kilometrage_entretien', 'kilometrage', 'kilométrage', 'km_entretien', 'km'])) : 0 };
   };
 
   const processImportFile = async (file: File) => {
@@ -183,7 +184,7 @@ export default function Expenses() {
                   return (
                     <tr key={expense.id} className={`hover:bg-slate-50 ${fromMaintenance ? 'bg-amber-50/30' : ''}`}>
                       <td className="px-4 py-3 text-sm text-slate-600">{formatDate(expense.date)}</td>
-                      <td className="px-4 py-3">{vehicle ? <Link to={`/vehicule/${vehicle.id}`} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">{vehicle.numero_immatriculation}</Link> : <span className="text-sm text-slate-400">{expense.vehicleId ? 'Supprimé' : 'Sans véhicule'}</span>}</td>
+                      <td className="px-4 py-3">{vehicle ? <Link to={`/vehicule/${vehicle.id}`} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">{vehicle.numero_immatriculation}</Link> : expense.vehicleId ? <span className="text-sm text-slate-400">Supprimé</span> : expense.vehicule_libre ? <span className="text-sm font-semibold text-slate-700" title="Véhicule saisi manuellement (hors parc)">{expense.vehicule_libre}</span> : <span className="text-sm text-slate-400">Sans véhicule</span>}</td>
                       <td className="px-4 py-3"><p className="text-sm font-semibold text-slate-800">{expense.libelle}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="rounded-full bg-slate-100 px-2 py-0.5">{expense.categorie}</span>
@@ -245,6 +246,7 @@ export default function Expenses() {
           knownSuppliers={knownSuppliers}
           knownLibelles={knownLibelles}
           knownPaiements={knownPaiements}
+          knownFreeVehicles={knownFreeVehicles}
           onSave={handleSaveExpense}
           onClose={() => { setShowForm(false); setEditingExpenseId(null); }}
         />
@@ -253,12 +255,13 @@ export default function Expenses() {
   );
 }
 
-function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, knownPaiements, onSave, onClose }: {
+function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, knownPaiements, knownFreeVehicles, onSave, onClose }: {
   expense?: ExpenseRecord;
   vehicles: { id: string; numero_immatriculation: string; marque: string; type_commercial: string }[];
   knownSuppliers: string[];
   knownLibelles: string[];
   knownPaiements: string[];
+  knownFreeVehicles: string[];
   onSave: (data: Omit<ExpenseRecord, 'id'>, id?: string) => void;
   onClose: () => void;
 }) {
@@ -266,6 +269,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, kn
   const draftKey = expense ? `fleetgest_draft_expense_edit_${expense.id}` : 'fleetgest_draft_expense_new';
   const [f, setF] = usePersistedState(draftKey, {
     vehicleId: expense ? (expense.vehicleId || '__autre__') : '',
+    vehicule_libre: expense?.vehicule_libre || '',
     date: expense?.date || new Date().toISOString().slice(0, 10),
     categorie: (expense?.categorie || 'Carburant') as ExpenseCategory,
     libelle: expense?.libelle || '',
@@ -286,7 +290,7 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, kn
     if (!f.vehicleId || !f.libelle || !f.montant) return;
     const finalPaiement = f.mode_paiement === 'Autre' ? (customPaiement.trim() || 'Autre') : f.mode_paiement;
     const data = {
-      vehicleId: f.vehicleId === '__autre__' ? '' : f.vehicleId, date: f.date, categorie: f.categorie, libelle: f.libelle, montant: Number(f.montant),
+      vehicleId: f.vehicleId === '__autre__' ? '' : f.vehicleId, vehicule_libre: f.vehicleId === '__autre__' ? (f.vehicule_libre || '').trim() : '', date: f.date, categorie: f.categorie, libelle: f.libelle, montant: Number(f.montant),
       fournisseur: f.fournisseur, mode_paiement: finalPaiement, numero_piece: f.numero_piece, justificatif_nom: f.justificatif_nom,
       notes: f.notes, date_entretien: f.categorie === 'Entretien' ? f.date_entretien || f.date : '',
       kilometrage_entretien: f.categorie === 'Entretien' ? Number(f.kilometrage_entretien) || 0 : 0,
@@ -306,6 +310,12 @@ function ExpenseFormModal({ expense, vehicles, knownSuppliers, knownLibelles, kn
           <label className="col-span-2 block text-xs font-medium text-slate-600">Véhicule
             <SearchableSelect required value={f.vehicleId} onChange={v => up('vehicleId', v)} placeholder="Sélectionner un véhicule" options={[{ value: '__autre__', label: 'Autre (non lié à un véhicule)' }, ...vehicles.map(v => ({ value: v.id, label: `${v.numero_immatriculation} - ${v.marque} ${v.type_commercial}` }))]} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
           </label>
+          {f.vehicleId === '__autre__' && (
+            <label className="col-span-2 block text-xs font-medium text-slate-600">Véhicule / engin (saisie libre, facultatif)
+              <input list="expense-free-vehicles" value={f.vehicule_libre || ''} onChange={(e) => up('vehicule_libre', e.target.value)} placeholder="Ex: 7876 JA 01, Hyster Bondoukou, tricycle…" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+              <datalist id="expense-free-vehicles">{knownFreeVehicles.map(s => <option key={s} value={s} />)}</datalist>
+            </label>
+          )}
           <label className="block text-xs font-medium text-slate-600">Date<input type="date" required value={f.date} onChange={(e) => setF(p => ({ ...p, date: e.target.value, date_entretien: p.categorie === 'Entretien' ? e.target.value : p.date_entretien }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" /></label>
           <label className="block text-xs font-medium text-slate-600">Catégorie
             <select value={f.categorie} onChange={(e) => setF(p => ({ ...p, categorie: e.target.value as ExpenseCategory, date_entretien: e.target.value === 'Entretien' ? p.date : p.date_entretien }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
